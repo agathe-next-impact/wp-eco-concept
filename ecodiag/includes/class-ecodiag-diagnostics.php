@@ -9,7 +9,11 @@ class EcoDiag_Diagnostics {
     /**
      * G-BDD: Database diagnostics.
      */
-    public static function database() {
+    public static function database( $force = false ) {
+        if ( ! $force ) {
+            $cached = get_transient( 'ecodiag_diag_database' );
+            if ( $cached ) return $cached;
+        }
         global $wpdb;
 
         // G-BDD-01: Total revisions
@@ -92,7 +96,7 @@ class EcoDiag_Diagnostics {
             )
         );
 
-        return array(
+        $result = array(
             'revisions' => array(
                 'ref'    => 'G-BDD-01',
                 'count'  => (int) $revisions,
@@ -136,12 +140,18 @@ class EcoDiag_Diagnostics {
                 'formatted' => EcoDiag_Scoring::format_size( (int) $db_size ),
             ),
         );
+        set_transient( 'ecodiag_diag_database', $result, 5 * MINUTE_IN_SECONDS );
+        return $result;
     }
 
     /**
      * G-PLG: Plugins diagnostics.
      */
-    public static function plugins() {
+    public static function plugins( $force = false ) {
+        if ( ! $force ) {
+            $cached = get_transient( 'ecodiag_diag_plugins' );
+            if ( $cached ) return $cached;
+        }
         if ( ! function_exists( 'get_plugins' ) ) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
@@ -220,7 +230,7 @@ class EcoDiag_Diagnostics {
             return $b['total_size'] - $a['total_size'];
         } );
 
-        return array(
+        $result = array(
             'inactive_plugins' => array(
                 'ref'   => 'G-PLG-01',
                 'items' => $inactive,
@@ -238,12 +248,18 @@ class EcoDiag_Diagnostics {
                 'items' => $plugin_assets,
             ),
         );
+        set_transient( 'ecodiag_diag_plugins', $result, 10 * MINUTE_IN_SECONDS );
+        return $result;
     }
 
     /**
      * G-MED: Media library diagnostics.
      */
-    public static function media() {
+    public static function media( $force = false ) {
+        if ( ! $force ) {
+            $cached = get_transient( 'ecodiag_diag_media' );
+            if ( $cached ) return $cached;
+        }
         global $wpdb;
 
         // G-MED-01: Non-converted images
@@ -288,7 +304,7 @@ class EcoDiag_Diagnostics {
              AND (pm.meta_value IS NULL OR pm.meta_value = '')"
         );
 
-        return array(
+        $result = array(
             'non_converted' => array(
                 'ref'    => 'G-MED-01',
                 'count'  => (int) $non_webp,
@@ -315,6 +331,8 @@ class EcoDiag_Diagnostics {
                 'status' => $no_alt > 20 ? 'red' : ( $no_alt > 5 ? 'orange' : 'green' ),
             ),
         );
+        set_transient( 'ecodiag_diag_media', $result, 10 * MINUTE_IN_SECONDS );
+        return $result;
     }
 
     /**

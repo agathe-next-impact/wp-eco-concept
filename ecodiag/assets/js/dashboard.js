@@ -33,6 +33,20 @@
         return 'red';
     }
 
+    // Escape HTML to prevent XSS
+    function escHtml(str) {
+        if (!str) return '';
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    }
+
+    // Escape HTML attribute value
+    function escAttr(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
     // AJAX helper
     function ajax(action, data, callback) {
         var fd = new FormData();
@@ -100,15 +114,15 @@
 
             // Heaviest pages table
             renderTable('ecodiag-heaviest-table', d.heaviest || [], function (row) {
-                return '<td><a href="post.php?action=edit&post=' + row.object_id + '">' + (row.post_title || '#' + row.object_id) + '</a></td>' +
+                return '<td><a href="post.php?action=edit&post=' + parseInt(row.object_id, 10) + '">' + escHtml(row.post_title || '#' + row.object_id) + '</a></td>' +
                     '<td>' + fmt(row.page_weight) + '</td>' +
-                    '<td><span class="ecodiag-score-badge" style="background:' + scoreColor(row.score) + '">' + row.score + '</span></td>';
+                    '<td><span class="ecodiag-score-badge" style="background:' + scoreColor(row.score) + '">' + parseInt(row.score, 10) + '</span></td>';
             });
 
             // Worst scored table
             renderTable('ecodiag-worst-table', d.worst || [], function (row) {
-                return '<td><a href="post.php?action=edit&post=' + row.object_id + '">' + (row.post_title || '#' + row.object_id) + '</a></td>' +
-                    '<td><span class="ecodiag-score-badge" style="background:' + scoreColor(row.score) + '">' + row.score + '</span></td>' +
+                return '<td><a href="post.php?action=edit&post=' + parseInt(row.object_id, 10) + '">' + escHtml(row.post_title || '#' + row.object_id) + '</a></td>' +
+                    '<td><span class="ecodiag-score-badge" style="background:' + scoreColor(row.score) + '">' + parseInt(row.score, 10) + '</span></td>' +
                     '<td>' + fmt(row.page_weight) + '</td>';
             });
 
@@ -289,10 +303,10 @@
         var attrs = '';
         if (data) {
             Object.keys(data).forEach(function (k) {
-                attrs += ' data-' + k + '="' + data[k] + '"';
+                attrs += ' data-' + escAttr(k) + '="' + escAttr(data[k]) + '"';
             });
         }
-        return '<button type="button" class="button ecodiag-global-action" data-action="' + action + '"' + attrs + '>' + label + '</button>';
+        return '<button type="button" class="button ecodiag-global-action" data-action="' + escAttr(action) + '"' + attrs + '>' + escHtml(label) + '</button>';
     }
 
     function renderBddDiag(db) {
@@ -323,7 +337,7 @@
             html += '<div class="ecodiag-diag-card info"><div class="ecodiag-diag-title">Plugins inactifs à supprimer</div>';
             plg.inactive_plugins.items.forEach(function (p) {
                 html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #eee">' +
-                    '<span>' + p.name + ' (' + p.formatted_size + ')</span>' +
+                    '<span>' + escHtml(p.name) + ' (' + escHtml(p.formatted_size) + ')</span>' +
                     actionBtn('ecodiag_delete_plugin', 'Supprimer', { plugin: p.file }) +
                     '</div>';
             });
@@ -336,7 +350,7 @@
             html += '<div class="ecodiag-diag-card info"><div class="ecodiag-diag-title">Thèmes inactifs à supprimer</div>';
             plg.inactive_themes.items.forEach(function (t) {
                 html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #eee">' +
-                    '<span>' + t.name + ' (' + t.formatted_size + ')</span>' +
+                    '<span>' + escHtml(t.name) + ' (' + escHtml(t.formatted_size) + ')</span>' +
                     actionBtn('ecodiag_delete_theme', 'Supprimer', { theme: t.slug }) +
                     '</div>';
             });
@@ -348,7 +362,7 @@
             html += '<div class="ecodiag-diag-card info"><div class="ecodiag-diag-ref">G-PLG-03</div><div class="ecodiag-diag-title">Poids des assets par plugin</div>';
             html += '<table class="ecodiag-table"><thead><tr><th>Plugin</th><th>JS+CSS</th></tr></thead><tbody>';
             plg.plugin_assets.items.slice(0, 10).forEach(function (p) {
-                html += '<tr><td>' + p.name + '</td><td>' + p.formatted + '</td></tr>';
+                html += '<tr><td>' + escHtml(p.name) + '</td><td>' + escHtml(p.formatted) + '</td></tr>';
             });
             html += '</tbody></table></div>';
         }
@@ -420,7 +434,7 @@
                 html += '<div class="ecodiag-diag-card info"><div class="ecodiag-diag-title">Contenus non modifiés depuis 12+ mois</div>';
                 html += '<table class="ecodiag-table"><thead><tr><th>Titre</th><th>Dernière modification</th></tr></thead><tbody>';
                 editorial.stale_content.items.forEach(function (item) {
-                    html += '<tr><td><a href="post.php?action=edit&post=' + item.ID + '">' + item.post_title + '</a></td><td>' + item.post_modified + '</td></tr>';
+                    html += '<tr><td><a href="post.php?action=edit&post=' + parseInt(item.ID, 10) + '">' + escHtml(item.post_title) + '</a></td><td>' + escHtml(item.post_modified) + '</td></tr>';
                 });
                 html += '</tbody></table></div>';
             }
@@ -444,7 +458,7 @@
         if (count > 0) {
             html += '<div class="ecodiag-diag-card info"><div class="ecodiag-diag-title">Tâches cron orphelines</div><ul>';
             Object.keys(orphaned).forEach(function (hook) {
-                html += '<li><code>' + hook + '</code></li>';
+                html += '<li><code>' + escHtml(hook) + '</code></li>';
             });
             html += '</ul></div>';
         }

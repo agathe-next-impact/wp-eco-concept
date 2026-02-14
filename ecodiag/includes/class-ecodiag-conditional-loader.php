@@ -89,7 +89,16 @@ class EcoDiag_Conditional_Loader {
 
         if ( $mode === 'post_types' && ! empty( $rule['post_types'] ) ) {
             $current_type = get_post_type();
-            return in_array( $current_type, (array) $rule['post_types'], true );
+            // On homepage/archive, get_post_type() can return empty
+            if ( ! $current_type ) {
+                $queried = get_queried_object();
+                if ( $queried instanceof WP_Post ) {
+                    $current_type = $queried->post_type;
+                } elseif ( is_home() || is_front_page() ) {
+                    $current_type = 'page';
+                }
+            }
+            return $current_type && in_array( $current_type, (array) $rule['post_types'], true );
         }
 
         return true;

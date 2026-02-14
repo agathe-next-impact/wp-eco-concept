@@ -333,18 +333,21 @@ class EcoDiag_Analyzer {
     /**
      * Measure resource sizes via HEAD requests.
      */
-    private static function measure_resources( $urls ) {
+    private static function measure_resources( $urls, $max = 50 ) {
         $resources = array();
+        $count = 0;
         foreach ( $urls as $url ) {
             $size = 0;
-            $response = wp_remote_head( $url, array(
-                'timeout'   => 5,
-                'sslverify' => false,
-            ) );
-            if ( ! is_wp_error( $response ) ) {
-                $cl = wp_remote_retrieve_header( $response, 'content-length' );
-                if ( $cl ) {
-                    $size = (int) $cl;
+            if ( $count < $max ) {
+                $response = wp_remote_head( $url, array(
+                    'timeout'   => 3,
+                    'sslverify' => false,
+                ) );
+                if ( ! is_wp_error( $response ) ) {
+                    $cl = wp_remote_retrieve_header( $response, 'content-length' );
+                    if ( $cl ) {
+                        $size = (int) $cl;
+                    }
                 }
             }
             $resources[] = array(
@@ -352,6 +355,7 @@ class EcoDiag_Analyzer {
                 'size' => $size,
                 'name' => basename( wp_parse_url( $url, PHP_URL_PATH ) ?: $url ),
             );
+            $count++;
         }
         // Sort by size descending
         usort( $resources, function( $a, $b ) {

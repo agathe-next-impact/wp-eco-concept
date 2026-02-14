@@ -65,9 +65,11 @@ class EcoDiag_Ajax_Handler {
     private function verify( $nonce_action = 'ecodiag_nonce' ) {
         if ( ! check_ajax_referer( $nonce_action, 'nonce', false ) ) {
             wp_send_json_error( __( 'Nonce invalide.', 'ecodiag' ) );
+            return;
         }
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_send_json_error( __( 'Permissions insuffisantes.', 'ecodiag' ) );
+            return;
         }
     }
 
@@ -127,7 +129,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_add_lazy_loading() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         $post = get_post( $post_id );
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
 
@@ -144,7 +146,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_add_dimensions() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         $post = get_post( $post_id );
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
 
@@ -182,7 +184,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_convert_images() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         $format  = get_option( 'ecodiag_conversion_format', 'webp' );
         $post    = get_post( $post_id );
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
@@ -240,7 +242,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_compress_images() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         $post    = get_post( $post_id );
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
 
@@ -274,7 +276,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_convert_embeds() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         $post    = get_post( $post_id );
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
 
@@ -319,7 +321,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_remove_autoplay() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         $post    = get_post( $post_id );
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
 
@@ -331,7 +333,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_add_iframe_lazy() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         $post    = get_post( $post_id );
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
 
@@ -343,7 +345,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_purge_revisions() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         $keep    = (int) get_option( 'ecodiag_revisions_keep', 5 );
 
         $revisions = wp_get_post_revisions( $post_id, array( 'order' => 'DESC' ) );
@@ -362,7 +364,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_clean_orphaned_meta() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         global $wpdb;
 
         $known_keys = array( '_edit_lock', '_edit_last', '_wp_page_template', '_thumbnail_id', '_wp_old_slug', '_ecodiag_disabled_scripts', '_ecodiag_disabled_styles' );
@@ -379,7 +381,7 @@ class EcoDiag_Ajax_Handler {
 
     public function ecodiag_disable_scripts() {
         $this->verify();
-        $post_id = (int) $_POST['post_id'];
+        $post_id = isset( $_POST['post_id'] ) ? (int) $_POST['post_id'] : 0;
         $scripts = isset( $_POST['scripts'] ) ? array_map( 'sanitize_key', (array) $_POST['scripts'] ) : array();
         $styles  = isset( $_POST['styles'] ) ? array_map( 'sanitize_key', (array) $_POST['styles'] ) : array();
 
@@ -430,6 +432,7 @@ class EcoDiag_Ajax_Handler {
              WHERE p.ID IS NULL"
         );
 
+        delete_transient( 'ecodiag_diag_database' );
         wp_send_json_success( sprintf( __( '%d révision(s) purgée(s).', 'ecodiag' ), $count ) );
     }
 
@@ -451,6 +454,7 @@ class EcoDiag_Ajax_Handler {
              AND option_value < UNIX_TIMESTAMP()"
         );
 
+        delete_transient( 'ecodiag_diag_database' );
         wp_send_json_success( sprintf( __( '%d transient(s) expiré(s) nettoyé(s).', 'ecodiag' ), $count + $count2 ) );
     }
 
@@ -490,6 +494,7 @@ class EcoDiag_Ajax_Handler {
              WHERE c.comment_ID IS NULL"
         );
 
+        delete_transient( 'ecodiag_diag_database' );
         wp_send_json_success( sprintf(
             __( '%d métadonnée(s) orpheline(s) nettoyée(s) (posts: %d, users: %d, comments: %d).', 'ecodiag' ),
             $count + $count2 + $count3, $count, $count2, $count3
@@ -503,6 +508,14 @@ class EcoDiag_Ajax_Handler {
         $tables = $wpdb->get_col( "SHOW TABLES" );
         $optimized = 0;
         foreach ( $tables as $table ) {
+            // Only optimize tables belonging to this WordPress install
+            if ( strpos( $table, $wpdb->prefix ) !== 0 ) {
+                continue;
+            }
+            // Sanitize table name: only allow alphanumeric and underscores
+            if ( ! preg_match( '/^[a-zA-Z0-9_]+$/', $table ) ) {
+                continue;
+            }
             $wpdb->query( "OPTIMIZE TABLE `{$table}`" );
             $optimized++;
         }
@@ -526,6 +539,7 @@ class EcoDiag_Ajax_Handler {
         if ( is_wp_error( $result ) ) {
             wp_send_json_error( $result->get_error_message() );
         }
+        delete_transient( 'ecodiag_diag_plugins' );
         wp_send_json_success( __( 'Plugin supprimé.', 'ecodiag' ) );
     }
 
@@ -541,6 +555,7 @@ class EcoDiag_Ajax_Handler {
         if ( is_wp_error( $result ) ) {
             wp_send_json_error( $result->get_error_message() );
         }
+        delete_transient( 'ecodiag_diag_plugins' );
         wp_send_json_success( __( 'Thème supprimé.', 'ecodiag' ) );
     }
 
@@ -678,6 +693,7 @@ class EcoDiag_Ajax_Handler {
             }
         }
 
+        delete_transient( 'ecodiag_diag_media' );
         wp_send_json_success( sprintf( __( '%d média(s) orphelin(s) supprimé(s).', 'ecodiag' ), $deleted ) );
     }
 

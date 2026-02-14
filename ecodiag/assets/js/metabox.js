@@ -30,6 +30,14 @@
         return bytes + ' o';
     }
 
+    // Escape HTML to prevent XSS
+    function escHtml(str) {
+        if (!str) return '';
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(String(str)));
+        return div.innerHTML;
+    }
+
     // Score color
     function scoreColor(score) {
         if (score >= 75) return 'green';
@@ -131,9 +139,9 @@
                 var item = document.createElement('div');
                 item.className = 'ecodiag-issue-item';
                 var tags = img.issues.map(function (issue) {
-                    return '<span class="ecodiag-issue-tag">' + issue.ref + ': ' + issue.label + '</span>';
+                    return '<span class="ecodiag-issue-tag">' + escHtml(issue.ref) + ': ' + escHtml(issue.label) + '</span>';
                 }).join('');
-                item.innerHTML = '<span class="ecodiag-issue-src">' + basename(img.src) + (img.size ? ' (' + fmt(img.size) + ')' : '') + '</span>' +
+                item.innerHTML = '<span class="ecodiag-issue-src">' + escHtml(basename(img.src)) + (img.size ? ' (' + fmt(img.size) + ')' : '') + '</span>' +
                     '<span class="ecodiag-issue-tags">' + tags + '</span>';
                 imgList.appendChild(item);
             });
@@ -150,9 +158,9 @@
                 var item = document.createElement('div');
                 item.className = 'ecodiag-issue-item';
                 var tags = embed.issues.map(function (issue) {
-                    return '<span class="ecodiag-issue-tag">' + issue.label + '</span>';
+                    return '<span class="ecodiag-issue-tag">' + escHtml(issue.label) + '</span>';
                 }).join('');
-                item.innerHTML = '<span class="ecodiag-issue-src">' + (embed.src ? basename(embed.src) : embed.type) + '</span>' +
+                item.innerHTML = '<span class="ecodiag-issue-src">' + escHtml(embed.src ? basename(embed.src) : embed.type) + '</span>' +
                     '<span class="ecodiag-issue-tags">' + tags + '</span>';
                 embedList.appendChild(item);
             });
@@ -193,7 +201,7 @@
         if (allResources.length > 0) {
             var table = '<table class="ecodiag-resources-table"><thead><tr><th>Ressource</th><th>Poids</th></tr></thead><tbody>';
             allResources.forEach(function (r) {
-                table += '<tr><td>' + r.name + '</td><td>' + fmt(r.size) + '</td></tr>';
+                table += '<tr><td>' + escHtml(r.name) + '</td><td>' + fmt(r.size) + '</td></tr>';
             });
             table += '</tbody></table>';
             resList.innerHTML = table;
