@@ -211,6 +211,55 @@
 	font-size: 13px;
 }
 
+/* Diagnostics in HUD */
+.ecopress-hud-diagnostics {
+	border-top: 1px solid #e5e5e5;
+	padding: 12px 16px;
+}
+
+.ecopress-hud-diagnostics h4 {
+	margin: 0 0 8px;
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: #757575;
+}
+
+.ecopress-hud-diag-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 0;
+	font-size: 12px;
+	border-bottom: 1px solid #f0f0f0;
+}
+
+.ecopress-hud-diag-item:last-child {
+	border-bottom: none;
+}
+
+.ecopress-hud-diag-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.ecopress-hud-diag-dot--ok { background: #2d9a2d; }
+.ecopress-hud-diag-dot--warning { background: #dba617; }
+.ecopress-hud-diag-dot--error { background: #d63638; }
+
+.ecopress-hud-diag-label {
+	flex: 1;
+	color: #444;
+}
+
+.ecopress-hud-diag-val {
+	font-weight: 600;
+	color: #1e1e1e;
+}
+
 /* Dark mode support via prefers-color-scheme */
 @media (prefers-color-scheme: dark) {
 	#ecopress-hud-panel {
@@ -252,5 +301,25 @@
 
 	.ecopress-resources h4 {
 		color: #999;
+	}
+
+	.ecopress-hud-diagnostics {
+		border-top-color: #333;
+	}
+
+	.ecopress-hud-diagnostics h4 {
+		color: #999;
+	}
+
+	.ecopress-hud-diag-item {
+		border-bottom-color: #333;
+	}
+
+	.ecopress-hud-diag-label {
+		color: #bbb;
+	}
+
+	.ecopress-hud-diag-val {
+		color: #e0e0e0;
 	}
 }

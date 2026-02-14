@@ -36,6 +36,22 @@ final class EcoPress_Fixer_DOM {
 			add_filter( 'style_loader_src', [ $this, 'strip_version_param' ], 9999 );
 			add_filter( 'script_loader_src', [ $this, 'strip_version_param' ], 9999 );
 		}
+
+		if ( (int) get_option( 'ecopress_dom_remove_jquery_migrate', 0 ) === 1 ) {
+			add_action( 'wp_default_scripts', [ $this, 'remove_jquery_migrate' ] );
+		}
+
+		if ( (int) get_option( 'ecopress_dom_remove_dashicons', 0 ) === 1 ) {
+			add_action( 'wp_enqueue_scripts', [ $this, 'remove_dashicons' ] );
+		}
+
+		if ( (int) get_option( 'ecopress_dom_disable_heartbeat', 0 ) === 1 ) {
+			add_action( 'wp_enqueue_scripts', [ $this, 'disable_heartbeat_frontend' ], 99 );
+		}
+
+		if ( (int) get_option( 'ecopress_dom_clean_head', 0 ) === 1 ) {
+			$this->clean_wp_head();
+		}
 	}
 
 	/**
@@ -95,5 +111,57 @@ final class EcoPress_Fixer_DOM {
 			$src = remove_query_arg( 'ver', $src );
 		}
 		return $src;
+	}
+
+	/**
+	 * Remove jQuery Migrate from the frontend.
+	 * jQuery Migrate is a legacy compatibility layer rarely needed on modern sites.
+	 *
+	 * @param \WP_Scripts $scripts WordPress scripts registry.
+	 */
+	public function remove_jquery_migrate( \WP_Scripts $scripts ): void {
+		if ( is_admin() ) {
+			return;
+		}
+
+		if ( isset( $scripts->registered['jquery'] ) ) {
+			$scripts->registered['jquery']->deps = array_diff(
+				$scripts->registered['jquery']->deps,
+				[ 'jquery-migrate' ]
+			);
+		}
+	}
+
+	/**
+	 * Remove Dashicons CSS on the frontend for non-logged-in users.
+	 * Dashicons is ~46 KB and only needed by the admin bar.
+	 */
+	public function remove_dashicons(): void {
+		if ( ! is_user_logged_in() ) {
+			wp_deregister_style( 'dashicons' );
+		}
+	}
+
+	/**
+	 * Disable the WordPress Heartbeat API on the frontend.
+	 * Heartbeat sends AJAX requests every 15-60 seconds, wasting bandwidth.
+	 */
+	public function disable_heartbeat_frontend(): void {
+		wp_deregister_script( 'heartbeat' );
+	}
+
+	/**
+	 * Remove unnecessary tags from wp_head.
+	 * Cleans: RSD link, WLW manifest, shortlink, REST API link, wp-json, feed links, generator meta.
+	 */
+	private function clean_wp_head(): void {
+		remove_action( 'wp_head', 'rsd_link' );
+		remove_action( 'wp_head', 'wlwmanifest_link' );
+		remove_action( 'wp_head', 'wp_shortlink_wp_head' );
+		remove_action( 'wp_head', 'rest_output_link_wp_head' );
+		remove_action( 'wp_head', 'wp_oembed_add_discovery_links' );
+		remove_action( 'wp_head', 'wp_generator' );
+		remove_action( 'wp_head', 'feed_links', 2 );
+		remove_action( 'wp_head', 'feed_links_extra', 3 );
 	}
 }

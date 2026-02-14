@@ -135,6 +135,43 @@
 			html += '</tbody></table>';
 		}
 
+		// Diagnostics section.
+		if (data.diagnostics && data.diagnostics.length > 0) {
+			var okCount = 0, warnCount = 0, errCount = 0;
+			for (var d = 0; d < data.diagnostics.length; d++) {
+				if (data.diagnostics[d].status === 'ok') okCount++;
+				else if (data.diagnostics[d].status === 'warning') warnCount++;
+				else errCount++;
+			}
+
+			html += '<div class="ecopress-diagnostics">';
+			html += '<h4>' + i18n.diagnostics + '</h4>';
+
+			// Summary counters.
+			html += '<div class="ecopress-diag-summary">';
+			html += '<span class="ecopress-diag-count"><span class="ecopress-diag-count-dot ecopress-diag-count-dot--ok"></span> ' + okCount + ' ' + i18n.statusOk + '</span>';
+			html += '<span class="ecopress-diag-count"><span class="ecopress-diag-count-dot ecopress-diag-count-dot--warning"></span> ' + warnCount + ' ' + i18n.statusWarning + '</span>';
+			html += '<span class="ecopress-diag-count"><span class="ecopress-diag-count-dot ecopress-diag-count-dot--error"></span> ' + errCount + ' ' + i18n.statusError + '</span>';
+			html += '</div>';
+
+			for (var d = 0; d < data.diagnostics.length; d++) {
+				var diag = data.diagnostics[d];
+				var iconClass = 'ecopress-diag-icon--' + diag.status;
+				var iconChar = diag.status === 'ok' ? '\u2713' : diag.status === 'warning' ? '!' : '\u2717';
+
+				html += '<div class="ecopress-diag-item">';
+				html += '<span class="ecopress-diag-icon ' + iconClass + '">' + iconChar + '</span>';
+				html += '<div class="ecopress-diag-content">';
+				html += '<div class="ecopress-diag-label">' + diag.label + '</div>';
+				html += '<div class="ecopress-diag-detail">' + diag.detail + '</div>';
+				html += '</div>';
+				html += '<span class="ecopress-diag-value">' + diag.value + '</span>';
+				html += '</div>';
+			}
+
+			html += '</div>';
+		}
+
 		// Convert button.
 		html += '<button type="button" class="button" id="ecopress-convert-btn">';
 		html += i18n.convertWebp;

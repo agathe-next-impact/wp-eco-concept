@@ -73,6 +73,34 @@ final class EcoPress_Admin {
 			'ecopress_dom_section'
 		);
 
+		$this->register_checkbox(
+			'ecopress_dom_remove_jquery_migrate',
+			__( 'Supprimer jQuery Migrate', 'ecopress-auditor' ),
+			__( 'Retire jQuery Migrate (~10 Ko) du frontend. Couche de compatibilité rarement nécessaire.', 'ecopress-auditor' ),
+			'ecopress_dom_section'
+		);
+
+		$this->register_checkbox(
+			'ecopress_dom_remove_dashicons',
+			__( 'Supprimer Dashicons (visiteurs)', 'ecopress-auditor' ),
+			__( 'Retire le CSS Dashicons (~46 Ko) pour les visiteurs non connectés.', 'ecopress-auditor' ),
+			'ecopress_dom_section'
+		);
+
+		$this->register_checkbox(
+			'ecopress_dom_disable_heartbeat',
+			__( 'Désactiver le Heartbeat frontend', 'ecopress-auditor' ),
+			__( 'Stoppe les requêtes AJAX périodiques du Heartbeat API sur le frontend.', 'ecopress-auditor' ),
+			'ecopress_dom_section'
+		);
+
+		$this->register_checkbox(
+			'ecopress_dom_clean_head',
+			__( 'Nettoyer le <head>', 'ecopress-auditor' ),
+			__( 'Supprime RSD, WLW, shortlink, liens REST API, flux RSS et meta generator du <head>.', 'ecopress-auditor' ),
+			'ecopress_dom_section'
+		);
+
 		// Lazy-Load section.
 		add_settings_section(
 			'ecopress_lazyload_section',

@@ -87,12 +87,16 @@ final class EcoPress_Auditor {
  */
 function ecopress_activate(): void {
 	$defaults = [
-		'ecopress_dom_remove_emoji'     => 0,
-		'ecopress_dom_remove_embeds'    => 0,
-		'ecopress_dom_remove_version'   => 0,
-		'ecopress_lazyload_enabled'     => 0,
-		'ecopress_weight_threshold'     => 1500, // Ko.
-		'ecopress_disabled_scripts'     => [],
+		'ecopress_dom_remove_emoji'          => 0,
+		'ecopress_dom_remove_embeds'         => 0,
+		'ecopress_dom_remove_version'        => 0,
+		'ecopress_dom_remove_jquery_migrate' => 0,
+		'ecopress_dom_remove_dashicons'      => 0,
+		'ecopress_dom_disable_heartbeat'     => 0,
+		'ecopress_dom_clean_head'            => 0,
+		'ecopress_lazyload_enabled'          => 0,
+		'ecopress_weight_threshold'          => 1500, // Ko.
+		'ecopress_disabled_scripts'          => [],
 	];
 
 	foreach ( $defaults as $key => $value ) {
@@ -111,6 +115,10 @@ function ecopress_uninstall(): void {
 		'ecopress_dom_remove_emoji',
 		'ecopress_dom_remove_embeds',
 		'ecopress_dom_remove_version',
+		'ecopress_dom_remove_jquery_migrate',
+		'ecopress_dom_remove_dashicons',
+		'ecopress_dom_disable_heartbeat',
+		'ecopress_dom_clean_head',
 		'ecopress_lazyload_enabled',
 		'ecopress_weight_threshold',
 		'ecopress_disabled_scripts',

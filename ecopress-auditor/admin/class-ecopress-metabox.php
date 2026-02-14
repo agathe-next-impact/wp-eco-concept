@@ -83,8 +83,12 @@ final class EcoPress_Metabox {
 				'action'      => __( 'Action', 'ecopress-auditor' ),
 				'converting'  => __( 'Conversion en cours...', 'ecopress-auditor' ),
 				'convertWebp' => __( 'Convertir les images en WebP', 'ecopress-auditor' ),
-				'noData'      => __( 'Publiez l\'article puis lancez un audit.', 'ecopress-auditor' ),
-				'error'       => __( 'Erreur lors de l\'audit.', 'ecopress-auditor' ),
+				'noData'        => __( 'Publiez l\'article puis lancez un audit.', 'ecopress-auditor' ),
+				'error'         => __( 'Erreur lors de l\'audit.', 'ecopress-auditor' ),
+				'diagnostics'   => __( 'Diagnostic éco-conception', 'ecopress-auditor' ),
+				'statusOk'      => __( 'OK', 'ecopress-auditor' ),
+				'statusWarning' => __( 'Attention', 'ecopress-auditor' ),
+				'statusError'   => __( 'Critique', 'ecopress-auditor' ),
 			],
 		] );
 	}

@@ -179,6 +179,29 @@
 			html += '</div>';
 		}
 
+		// Diagnostics (show only warnings and errors in HUD to keep it compact).
+		if (data.diagnostics && data.diagnostics.length > 0) {
+			var issues = [];
+			for (var d = 0; d < data.diagnostics.length; d++) {
+				if (data.diagnostics[d].status !== 'ok') {
+					issues.push(data.diagnostics[d]);
+				}
+			}
+			if (issues.length > 0) {
+				html += '<div class="ecopress-hud-diagnostics">';
+				html += '<h4>' + i18n.diagnostics + '</h4>';
+				for (var j = 0; j < issues.length; j++) {
+					var diag = issues[j];
+					html += '<div class="ecopress-hud-diag-item">';
+					html += '<span class="ecopress-hud-diag-dot ecopress-hud-diag-dot--' + diag.status + '"></span>';
+					html += '<span class="ecopress-hud-diag-label">' + diag.label + '</span>';
+					html += '<span class="ecopress-hud-diag-val">' + diag.value + '</span>';
+					html += '</div>';
+				}
+				html += '</div>';
+			}
+		}
+
 		panel.innerHTML = html;
 		panel.querySelector('.ecopress-hud-close').addEventListener('click', closePanel);
 
