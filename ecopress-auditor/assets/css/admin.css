@@ -1,0 +1,139 @@
+/**
+ * EcoPress Admin Metabox styles.
+ *
+ * @package EcoPress
+ */
+
+#ecopress-metabox-root {
+	padding: 12px 0;
+}
+
+/* Audit summary cards */
+.ecopress-audit-summary {
+	display: flex;
+	gap: 12px;
+	margin-bottom: 16px;
+	flex-wrap: wrap;
+}
+
+.ecopress-audit-card {
+	flex: 1;
+	min-width: 120px;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 16px;
+	text-align: center;
+}
+
+.ecopress-audit-card-value {
+	font-size: 28px;
+	font-weight: 700;
+	line-height: 1.2;
+	margin-bottom: 4px;
+}
+
+.ecopress-audit-card-label {
+	font-size: 12px;
+	color: #646970;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* Resources table */
+.ecopress-resources-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 16px;
+}
+
+.ecopress-resources-table th,
+.ecopress-resources-table td {
+	padding: 8px 12px;
+	text-align: left;
+	border-bottom: 1px solid #dcdcde;
+	font-size: 13px;
+}
+
+.ecopress-resources-table th {
+	background: #f6f7f7;
+	font-weight: 600;
+	color: #1d2327;
+}
+
+.ecopress-resources-table .ecopress-res-url {
+	max-width: 300px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: monospace;
+	font-size: 12px;
+}
+
+.ecopress-res-type {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.ecopress-res-type--css {
+	background: #e3f2fd;
+	color: #1565c0;
+}
+
+.ecopress-res-type--js {
+	background: #fff3e0;
+	color: #e65100;
+}
+
+.ecopress-res-type--image {
+	background: #e8f5e9;
+	color: #2e7d32;
+}
+
+.ecopress-res-size {
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+/* Convert button */
+#ecopress-convert-btn {
+	margin-top: 12px;
+}
+
+/* Script unloader */
+#ecopress-script-unloader h4 {
+	margin: 0 0 8px;
+	font-size: 14px;
+}
+
+#ecopress-script-unloader textarea {
+	font-family: monospace;
+	font-size: 12px;
+}
+
+/* Loading spinner */
+.ecopress-spinner {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	border: 2px solid #dcdcde;
+	border-top-color: #2271b1;
+	border-radius: 50%;
+	animation: ecopress-spin 0.6s linear infinite;
+	vertical-align: middle;
+	margin-right: 6px;
+}
+
+@keyframes ecopress-spin {
+	to { transform: rotate(360deg); }
+}
+
+/* Error message */
+.ecopress-error {
+	color: #d63638;
+	font-weight: 500;
+}
