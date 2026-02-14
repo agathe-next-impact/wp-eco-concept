@@ -1,0 +1,14 @@
+/* EcoDiag Admin Columns */
+.column-ecodiag_score { width: 100px; }
+.column-ecodiag_weight { width: 100px; }
+.column-ecodiag_imgs { width: 90px; }
+
+.ecodiag-col-badge {
+    display: inline-block;
+    text-align: center;
+    min-width: 36px;
+}
+
+.ecodiag-col-na {
+    font-style: italic;
+}
