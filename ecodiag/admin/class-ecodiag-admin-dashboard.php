@@ -157,6 +157,8 @@ class EcoDiag_Admin_Dashboard {
                     <canvas id="ecodiag-weight-chart" height="200"></canvas>
                 </div>
             </div>
+
+            <div id="ecodiag-action-notification" class="ecodiag-notification" style="display:none"></div>
         </div>
         <?php
     }

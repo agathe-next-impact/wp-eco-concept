@@ -50,6 +50,8 @@ class EcoDiag_Ajax_Handler {
             'ecodiag_dashboard_data',
             // Server diagnostics
             'ecodiag_server_diagnostics',
+            // Full site audit
+            'ecodiag_run_full_audit',
         );
 
         foreach ( $actions as $action ) {
@@ -401,22 +403,24 @@ class EcoDiag_Ajax_Handler {
                 "DELETE FROM {$wpdb->posts} WHERE post_type = 'revision'"
             );
         } else {
-            // Delete revisions beyond the keep limit for each post
-            $count = $wpdb->query( $wpdb->prepare(
-                "DELETE r FROM {$wpdb->posts} r
-                 WHERE r.post_type = 'revision'
-                 AND r.ID NOT IN (
-                     SELECT id FROM (
-                         SELECT r2.ID as id
-                         FROM {$wpdb->posts} r2
-                         WHERE r2.post_type = 'revision'
-                         AND r2.post_parent = r.post_parent
-                         ORDER BY r2.post_date DESC
-                         LIMIT %d
-                     ) AS kept
-                 )",
-                $keep
-            ) );
+            // Get all posts that have revisions, then delete beyond keep limit
+            $parent_ids = $wpdb->get_col(
+                "SELECT DISTINCT post_parent FROM {$wpdb->posts} WHERE post_type = 'revision'"
+            );
+            $count = 0;
+            foreach ( $parent_ids as $parent_id ) {
+                $to_delete = $wpdb->get_col( $wpdb->prepare(
+                    "SELECT ID FROM {$wpdb->posts}
+                     WHERE post_type = 'revision' AND post_parent = %d
+                     ORDER BY post_date DESC
+                     LIMIT 99999 OFFSET %d",
+                    $parent_id, $keep
+                ) );
+                if ( ! empty( $to_delete ) ) {
+                    $ids = implode( ',', array_map( 'intval', $to_delete ) );
+                    $count += (int) $wpdb->query( "DELETE FROM {$wpdb->posts} WHERE ID IN ({$ids})" );
+                }
+            }
         }
 
         // Clean orphaned postmeta
@@ -560,8 +564,13 @@ class EcoDiag_Ajax_Handler {
             'fields'         => 'ids',
         ) );
 
-        $total = wp_count_posts( 'attachment' );
-        $total_images = isset( $total->inherit ) ? (int) $total->inherit : 0;
+        global $wpdb;
+        $total_images = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts}
+             WHERE post_type = 'attachment'
+             AND post_mime_type IN ('image/jpeg','image/png','image/gif')
+             AND post_status = 'inherit'"
+        );
 
         $converted = 0;
         foreach ( $images as $att_id ) {
@@ -629,13 +638,22 @@ class EcoDiag_Ajax_Handler {
             }
         }
 
-        $has_more = count( $images ) === $batch;
+        global $wpdb;
+        $total_images = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts}
+             WHERE post_type = 'attachment'
+             AND post_mime_type IN ('image/jpeg','image/png','image/webp')
+             AND post_status = 'inherit'"
+        );
+        $has_more   = count( $images ) === $batch;
+        $new_offset = $offset + $batch;
 
         wp_send_json_success( array(
             'compressed' => $compressed,
-            'offset'     => $offset + $batch,
+            'offset'     => $new_offset,
             'has_more'   => $has_more,
-            'message'    => sprintf( __( 'Lot traité : %d compressée(s).', 'ecodiag' ), $compressed ),
+            'total'      => $total_images,
+            'message'    => sprintf( __( '%d/%d traité(s), %d compressée(s).', 'ecodiag' ), min( $new_offset, $total_images ), $total_images, $compressed ),
         ) );
     }
 
@@ -814,5 +832,56 @@ class EcoDiag_Ajax_Handler {
     public function ecodiag_server_diagnostics() {
         $this->verify();
         wp_send_json_success( EcoDiag_Diagnostics::server() );
+    }
+
+    // ========================================================================
+    // FULL SITE AUDIT
+    // ========================================================================
+
+    public function ecodiag_run_full_audit() {
+        $this->verify();
+
+        $post_types = EcoDiag_Core::get_audited_post_types();
+        $offset     = isset( $_POST['offset'] ) ? (int) $_POST['offset'] : 0;
+        $batch      = 10;
+
+        $posts = get_posts( array(
+            'post_type'      => $post_types,
+            'post_status'    => 'publish',
+            'posts_per_page' => $batch,
+            'offset'         => $offset,
+            'fields'         => 'ids',
+            'orderby'        => 'modified',
+            'order'          => 'DESC',
+        ) );
+
+        $total_query = new WP_Query( array(
+            'post_type'      => $post_types,
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+        ) );
+        $total = $total_query->found_posts;
+
+        $audited = 0;
+        foreach ( $posts as $post_id ) {
+            EcoDiag_Analyzer::audit_post( $post_id, true );
+            $audited++;
+        }
+
+        if ( function_exists( 'wp_cache_flush' ) ) {
+            wp_cache_flush();
+        }
+
+        $has_more   = count( $posts ) === $batch;
+        $new_offset = $offset + $batch;
+
+        wp_send_json_success( array(
+            'audited'  => $audited,
+            'offset'   => $new_offset,
+            'has_more' => $has_more,
+            'total'    => $total,
+            'message'  => sprintf( __( '%d/%d page(s) auditée(s)…', 'ecodiag' ), min( $new_offset, $total ), $total ),
+        ) );
     }
 }

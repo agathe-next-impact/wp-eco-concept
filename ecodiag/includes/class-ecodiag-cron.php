@@ -10,6 +10,7 @@ class EcoDiag_Cron {
         add_action( 'ecodiag_daily_audit', array( $this, 'daily_tasks' ) );
         add_action( 'ecodiag_scheduled_audit', array( $this, 'run_full_audit' ) );
         add_filter( 'cron_schedules', array( $this, 'add_schedules' ) );
+        add_action( 'update_option_ecodiag_audit_frequency', array( $this, 'reschedule_audit' ), 10, 2 );
 
         // Schedule the periodic audit if not scheduled
         $this->maybe_schedule_audit();
@@ -41,6 +42,17 @@ class EcoDiag_Cron {
     }
 
     /**
+     * Reschedule audit when frequency option changes.
+     */
+    public function reschedule_audit( $old_value, $new_value ) {
+        wp_clear_scheduled_hook( 'ecodiag_scheduled_audit' );
+        if ( $new_value !== 'never' ) {
+            $recurrence = $new_value === 'weekly' ? 'ecodiag_weekly' : 'ecodiag_monthly';
+            wp_schedule_event( time() + HOUR_IN_SECONDS, $recurrence, 'ecodiag_scheduled_audit' );
+        }
+    }
+
+    /**
      * Daily tasks: cleanup history, check alerts.
      */
     public function daily_tasks() {
@@ -62,12 +74,18 @@ class EcoDiag_Cron {
             'order'          => 'DESC',
         ) );
 
+        $batch_count = 0;
         foreach ( $posts as $post_id ) {
             EcoDiag_Analyzer::audit_post( $post_id, true );
-            // Prevent server overload
-            if ( function_exists( 'wp_cache_flush' ) ) {
+            $batch_count++;
+            // Flush cache every 10 posts to prevent memory issues
+            if ( $batch_count % 10 === 0 && function_exists( 'wp_cache_flush' ) ) {
                 wp_cache_flush();
             }
+        }
+        // Final flush
+        if ( function_exists( 'wp_cache_flush' ) ) {
+            wp_cache_flush();
         }
 
         $this->check_score_alert();

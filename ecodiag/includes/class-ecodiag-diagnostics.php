@@ -387,7 +387,6 @@ class EcoDiag_Diagnostics {
         );
 
         // G-REC-12: MySQL version
-        $db_version = $wpdb ?? null;
         global $wpdb;
         $mysql_version = $wpdb->get_var( "SELECT VERSION()" );
         $diagnostics['mysql_version'] = array(

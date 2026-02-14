@@ -101,7 +101,8 @@ class EcoDiag_Admin_Settings {
             switch ( $type ) {
                 case 'toggle':
                     printf(
-                        '<label class="ecodiag-toggle"><input type="checkbox" name="%s" value="1" %s /><span class="ecodiag-toggle-slider"></span></label>',
+                        '<input type="hidden" name="%s" value="0" /><label class="ecodiag-toggle"><input type="checkbox" name="%s" value="1" %s /><span class="ecodiag-toggle-slider"></span></label>',
+                        esc_attr( $id ),
                         esc_attr( $id ),
                         checked( $value, '1', false )
                     );
@@ -213,15 +214,34 @@ class EcoDiag_Admin_Settings {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ( $plugins as $p ) :
+                            <?php
+                            $public_post_types = get_post_types( array( 'public' => true ), 'objects' );
+                            foreach ( $plugins as $p ) :
                                 $rule = isset( $rules_map[ $p['slug'] ] ) ? $rules_map[ $p['slug'] ] : array( 'mode' => 'everywhere' );
                                 $mode = $rule['mode'] ?? 'everywhere';
+                                $saved_post_types = isset( $rule['post_types'] ) ? (array) $rule['post_types'] : array();
+                                $saved_pages = isset( $rule['pages'] ) ? implode( ',', array_map( 'intval', (array) $rule['pages'] ) ) : '';
                             ?>
                             <tr data-plugin="<?php echo esc_attr( $p['slug'] ); ?>">
                                 <td><strong><?php echo esc_html( $p['name'] ); ?></strong></td>
                                 <td><input type="radio" name="rule_<?php echo esc_attr( $p['slug'] ); ?>" value="everywhere" <?php checked( $mode, 'everywhere' ); ?> /></td>
-                                <td><input type="radio" name="rule_<?php echo esc_attr( $p['slug'] ); ?>" value="post_types" <?php checked( $mode, 'post_types' ); ?> /></td>
-                                <td><input type="radio" name="rule_<?php echo esc_attr( $p['slug'] ); ?>" value="specific" <?php checked( $mode, 'specific' ); ?> /></td>
+                                <td>
+                                    <input type="radio" name="rule_<?php echo esc_attr( $p['slug'] ); ?>" value="post_types" <?php checked( $mode, 'post_types' ); ?> />
+                                    <div class="ecodiag-cond-details ecodiag-cond-post-types" style="<?php echo $mode === 'post_types' ? '' : 'display:none'; ?>">
+                                        <?php foreach ( $public_post_types as $pt ) : ?>
+                                        <label style="display:block;margin:2px 0">
+                                            <input type="checkbox" class="ecodiag-cond-pt" value="<?php echo esc_attr( $pt->name ); ?>" <?php checked( in_array( $pt->name, $saved_post_types, true ) ); ?> />
+                                            <?php echo esc_html( $pt->label ); ?>
+                                        </label>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="radio" name="rule_<?php echo esc_attr( $p['slug'] ); ?>" value="specific" <?php checked( $mode, 'specific' ); ?> />
+                                    <div class="ecodiag-cond-details ecodiag-cond-pages" style="<?php echo $mode === 'specific' ? '' : 'display:none'; ?>">
+                                        <input type="text" class="ecodiag-cond-page-ids small-text" value="<?php echo esc_attr( $saved_pages ); ?>" placeholder="<?php esc_attr_e( 'IDs séparés par des virgules', 'ecodiag' ); ?>" style="width:140px" />
+                                    </div>
+                                </td>
                                 <td><input type="radio" name="rule_<?php echo esc_attr( $p['slug'] ); ?>" value="nowhere" <?php checked( $mode, 'nowhere' ); ?> /></td>
                             </tr>
                             <?php endforeach; ?>

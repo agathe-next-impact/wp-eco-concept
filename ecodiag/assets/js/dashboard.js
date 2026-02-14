@@ -211,19 +211,42 @@
         });
     }
 
-    // Full audit button
+    // Full audit button (batch processing)
     var fullAuditBtn = document.getElementById('ecodiag-run-full-audit');
     if (fullAuditBtn) {
+        var auditOffset = 0;
         fullAuditBtn.addEventListener('click', function () {
+            auditOffset = 0;
             fullAuditBtn.disabled = true;
             fullAuditBtn.textContent = i18n.processing || 'Traitement…';
-            // Trigger a batch audit via cron
-            ajax('ecodiag_run_audit', { post_id: 0 }, function () {
-                fullAuditBtn.disabled = false;
-                fullAuditBtn.textContent = i18n.done || 'Terminé';
-                notify('Audit planifié.', 'success');
-            });
+            runFullAuditBatch();
         });
+
+        function runFullAuditBatch() {
+            ajax('ecodiag_run_full_audit', { offset: auditOffset }, function (r) {
+                if (!r.success) {
+                    fullAuditBtn.disabled = false;
+                    fullAuditBtn.textContent = 'Lancer un audit complet';
+                    notify(r.data || 'Erreur', 'error');
+                    auditOffset = 0;
+                    return;
+                }
+                var d = r.data;
+                fullAuditBtn.textContent = d.message || 'Traitement…';
+                if (d.has_more) {
+                    auditOffset = d.offset;
+                    setTimeout(runFullAuditBatch, 500);
+                } else {
+                    fullAuditBtn.disabled = false;
+                    fullAuditBtn.textContent = i18n.done || 'Terminé !';
+                    fullAuditBtn.style.background = '#2ecc71';
+                    fullAuditBtn.style.color = '#fff';
+                    notify('Audit complet terminé.', 'success');
+                    auditOffset = 0;
+                    setTimeout(loadDashboard, 1000);
+                }
+            });
+        }
     }
 
     // ==================================================================
@@ -505,32 +528,33 @@
             }
         });
 
-        ajax(action, data, function (r) {
-            btn.disabled = false;
-            if (r.success) {
-                btn.textContent = i18n.done || 'Terminé';
-                btn.style.background = '#2ecc71';
-                btn.style.color = '#fff';
-                btn.style.borderColor = '#27ae60';
-                var msg = typeof r.data === 'string' ? r.data : (r.data && r.data.message ? r.data.message : 'OK');
-                notify(msg, 'success');
+        function runAction(actionData) {
+            ajax(action, actionData, function (r) {
+                if (r.success) {
+                    var msg = typeof r.data === 'string' ? r.data : (r.data && r.data.message ? r.data.message : 'OK');
 
-                // Handle bulk operations with progress
-                if (r.data && r.data.has_more) {
-                    btn.textContent = r.data.message;
-                    btn.style.background = '';
-                    btn.style.color = '';
-                    btn.style.borderColor = '';
+                    // Handle bulk operations with progress
+                    if (r.data && r.data.has_more) {
+                        btn.textContent = r.data.message || msg;
+                        notify(msg, 'success');
+                        actionData.offset = r.data.offset;
+                        setTimeout(function () { runAction(actionData); }, 500);
+                    } else {
+                        btn.disabled = false;
+                        btn.textContent = i18n.done || 'Terminé';
+                        btn.style.background = '#2ecc71';
+                        btn.style.color = '#fff';
+                        btn.style.borderColor = '#27ae60';
+                        notify(msg, 'success');
+                    }
+                } else {
                     btn.disabled = false;
-                    // Auto-continue
-                    data.offset = r.data.offset;
-                    setTimeout(function () { btn.click(); }, 500);
+                    btn.textContent = origText;
+                    notify(r.data || i18n.error || 'Erreur', 'error');
                 }
-            } else {
-                btn.textContent = origText;
-                notify(r.data || i18n.error || 'Erreur', 'error');
-            }
-        });
+            });
+        }
+        runAction(data);
     });
 
     // ==================================================================
@@ -569,14 +593,38 @@
     // ==================================================================
     var saveConditionalBtn = document.getElementById('ecodiag-save-conditional');
     if (saveConditionalBtn) {
+        // Show/hide detail fields based on radio selection
+        document.querySelectorAll('.ecodiag-conditional-table input[type="radio"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                var row = this.closest('tr');
+                var ptDiv = row.querySelector('.ecodiag-cond-post-types');
+                var pgDiv = row.querySelector('.ecodiag-cond-pages');
+                if (ptDiv) ptDiv.style.display = this.value === 'post_types' ? '' : 'none';
+                if (pgDiv) pgDiv.style.display = this.value === 'specific' ? '' : 'none';
+            });
+        });
+
         saveConditionalBtn.addEventListener('click', function () {
             var rules = [];
             document.querySelectorAll('.ecodiag-conditional-table tbody tr').forEach(function (row) {
                 var plugin = row.dataset.plugin;
                 var checked = row.querySelector('input[type="radio"]:checked');
-                if (plugin && checked) {
-                    rules.push({ plugin: plugin, mode: checked.value, post_types: [], pages: [] });
+                if (!plugin || !checked) return;
+
+                var postTypes = [];
+                var pages = [];
+                if (checked.value === 'post_types') {
+                    row.querySelectorAll('.ecodiag-cond-pt:checked').forEach(function (cb) {
+                        postTypes.push(cb.value);
+                    });
                 }
+                if (checked.value === 'specific') {
+                    var pageInput = row.querySelector('.ecodiag-cond-page-ids');
+                    if (pageInput && pageInput.value.trim()) {
+                        pages = pageInput.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+                    }
+                }
+                rules.push({ plugin: plugin, mode: checked.value, post_types: postTypes, pages: pages });
             });
 
             var fd = new FormData();
@@ -585,6 +633,12 @@
             rules.forEach(function (rule, i) {
                 fd.append('rules[' + i + '][plugin]', rule.plugin);
                 fd.append('rules[' + i + '][mode]', rule.mode);
+                rule.post_types.forEach(function (pt, j) {
+                    fd.append('rules[' + i + '][post_types][' + j + ']', pt);
+                });
+                rule.pages.forEach(function (pg, j) {
+                    fd.append('rules[' + i + '][pages][' + j + ']', pg);
+                });
             });
 
             fetch(ajaxUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
