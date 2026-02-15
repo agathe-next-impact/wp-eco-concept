@@ -36,6 +36,11 @@ class EcoDiag_Core {
         if ( get_option( 'ecodiag_frontend_enabled', '1' ) === '1' ) {
             new EcoDiag_Adminbar();
         }
+
+        // Front-end diagnostic popup
+        if ( get_option( 'ecodiag_popup_enabled', '1' ) === '1' ) {
+            new EcoDiag_Front_Popup();
+        }
     }
 
     /**

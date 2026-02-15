@@ -57,6 +57,9 @@ class EcoDiag_Ajax_Handler {
         foreach ( $actions as $action ) {
             add_action( 'wp_ajax_' . $action, array( $this, $action ) );
         }
+
+        // Popup data endpoint — lower capability requirement (edit_posts)
+        add_action( 'wp_ajax_ecodiag_popup_data', array( $this, 'ecodiag_popup_data' ) );
     }
 
     /**
@@ -899,5 +902,51 @@ class EcoDiag_Ajax_Handler {
             'total'    => $total,
             'message'  => sprintf( __( '%d/%d page(s) auditée(s)…', 'ecodiag' ), min( $new_offset, $total ), $total ),
         ) );
+    }
+
+    // ========================================================================
+    // FRONT-END POPUP DATA (lower capability: edit_posts)
+    // ========================================================================
+
+    public function ecodiag_popup_data() {
+        if ( ! check_ajax_referer( 'ecodiag_nonce', 'nonce', false ) ) {
+            wp_send_json_error( __( 'Nonce invalide.', 'ecodiag' ) );
+            return;
+        }
+        if ( ! current_user_can( 'edit_posts' ) ) {
+            wp_send_json_error( __( 'Permissions insuffisantes.', 'ecodiag' ) );
+            return;
+        }
+
+        $url = isset( $_POST['url'] ) ? esc_url_raw( $_POST['url'] ) : '';
+        if ( ! $url ) {
+            wp_send_json_error( __( 'URL invalide.', 'ecodiag' ) );
+            return;
+        }
+
+        $post_id = url_to_postid( $url );
+        if ( $post_id ) {
+            $result = EcoDiag_Analyzer::audit_post( $post_id );
+        } else {
+            $result = EcoDiag_Analyzer::analyze_url( $url );
+            if ( ! is_wp_error( $result ) ) {
+                $result['score'] = EcoDiag_Scoring::calculate( array(
+                    'page_weight' => $result['total_weight'],
+                    'requests'    => $result['requests_count'],
+                    'dom_size'    => $result['dom_size'],
+                    'js_count'    => $result['js_count'],
+                    'css_count'   => $result['css_count'],
+                    'img_issues'  => $result['img_issues_count'],
+                ) );
+                $result['grade'] = EcoDiag_Scoring::grade( $result['score'] );
+                $result['color'] = EcoDiag_Scoring::hex_color( $result['score'] );
+            }
+        }
+
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( $result->get_error_message() );
+            return;
+        }
+        wp_send_json_success( $result );
     }
 }

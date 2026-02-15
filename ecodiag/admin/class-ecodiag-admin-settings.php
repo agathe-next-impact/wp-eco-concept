@@ -47,6 +47,7 @@ class EcoDiag_Admin_Settings {
         add_settings_section( 'ecodiag_general', __( 'Réglages généraux', 'ecodiag' ), null, 'ecodiag-settings' );
 
         $this->add_field( 'ecodiag_frontend_enabled', __( 'Activer le bandeau front-end', 'ecodiag' ), 'toggle', 'ecodiag_general' );
+        $this->add_field( 'ecodiag_popup_enabled', __( 'Activer le popup diagnostic front-end', 'ecodiag' ), 'toggle', 'ecodiag_general' );
         $this->add_field( 'ecodiag_show_listing_column', __( 'Colonne score dans les listings', 'ecodiag' ), 'toggle', 'ecodiag_general' );
         $this->add_field( 'ecodiag_image_max_weight', __( 'Seuil poids image max (Ko)', 'ecodiag' ), 'number', 'ecodiag_general' );
         $this->add_field( 'ecodiag_compression_quality', __( 'Qualité de compression (%)', 'ecodiag' ), 'range', 'ecodiag_general' );
