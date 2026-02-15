@@ -14,6 +14,19 @@ class EcoDiag_Core {
 
     private function __construct() {
         $this->load_modules();
+
+        // Invalidate audit cache when a post is saved
+        add_action( 'save_post', array( $this, 'invalidate_audit_cache' ), 10, 1 );
+    }
+
+    /**
+     * Clear audit transient when a post is updated.
+     */
+    public function invalidate_audit_cache( $post_id ) {
+        if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+            return;
+        }
+        delete_transient( 'ecodiag_audit_' . $post_id );
     }
 
     private function load_modules() {

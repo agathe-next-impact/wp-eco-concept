@@ -221,7 +221,7 @@ class EcoDiag_Front_Popup {
                     { key: 'dom', label: <?php echo wp_json_encode( __( 'Taille DOM', 'ecodiag' ) ); ?>, val: d.dom_size + ' noeuds', raw: d.dom_size },
                     { key: 'js', label: <?php echo wp_json_encode( __( 'Fichiers JS', 'ecodiag' ) ); ?>, val: d.js_count, raw: d.js_count },
                     { key: 'css', label: <?php echo wp_json_encode( __( 'Fichiers CSS', 'ecodiag' ) ); ?>, val: d.css_count, raw: d.css_count },
-                    { key: 'img', label: <?php echo wp_json_encode( __( 'Images non optimisées', 'ecodiag' ) ); ?>, val: d.img_issues_count, raw: d.img_issues_count }
+                    { key: 'img', label: <?php echo wp_json_encode( __( 'Images avec problèmes', 'ecodiag' ) ); ?>, val: d.img_issues_count + (d.img_total_count ? '/' + d.img_total_count : ''), raw: d.img_issues_count }
                 ];
 
                 html += '<div id="ecodiag-popup-metrics">';

@@ -111,16 +111,18 @@ class EcoDiag_History {
         global $wpdb;
         $table = $wpdb->prefix . 'ecodiag_history';
         return $wpdb->get_row(
-            "SELECT AVG(h.score) as avg_score, AVG(h.page_weight) as avg_weight,
-                    SUM(h.img_issues) as total_img_issues, COUNT(DISTINCT h.object_id) as total_pages
+            "SELECT COALESCE(AVG(h.score), 0) as avg_score,
+                    COALESCE(AVG(h.page_weight), 0) as avg_weight,
+                    COALESCE(SUM(h.img_issues), 0) as total_img_issues,
+                    COUNT(DISTINCT h.object_id) as total_pages
              FROM {$table} h
              INNER JOIN (
-                 SELECT object_id, MAX(created_at) as max_date
+                 SELECT object_id, object_type, MAX(created_at) as max_date
                  FROM {$table}
-                 WHERE object_type = 'post'
-                 GROUP BY object_id
-             ) latest ON h.object_id = latest.object_id AND h.created_at = latest.max_date
-             WHERE h.object_type = 'post'",
+                 GROUP BY object_id, object_type
+             ) latest ON h.object_id = latest.object_id
+                     AND h.object_type = latest.object_type
+                     AND h.created_at = latest.max_date",
             ARRAY_A
         );
     }

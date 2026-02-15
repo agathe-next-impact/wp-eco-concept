@@ -64,11 +64,23 @@ class EcoDiag_Analyzer {
      * @return array|WP_Error Analysis results.
      */
     public static function analyze_url( $url ) {
+        // Forward logged-in cookies for internal URLs so the analyzer sees the same page
+        $cookies = array();
+        $site_host = wp_parse_url( home_url(), PHP_URL_HOST );
+        $url_host  = wp_parse_url( $url, PHP_URL_HOST );
+        if ( $url_host === $site_host && is_user_logged_in() ) {
+            foreach ( $_COOKIE as $name => $value ) {
+                if ( strpos( $name, 'wordpress_logged_in' ) === 0 ) {
+                    $cookies[] = new WP_Http_Cookie( array( 'name' => $name, 'value' => $value ) );
+                }
+            }
+        }
+
         $response = wp_remote_get( $url, array(
             'timeout'    => 30,
             'sslverify'  => false,
             'user-agent' => 'EcoDiag/' . ECODIAG_VERSION,
-            'cookies'    => array(),
+            'cookies'    => $cookies,
         ) );
 
         if ( is_wp_error( $response ) ) {
@@ -106,6 +118,7 @@ class EcoDiag_Analyzer {
 
         // Image issues
         $img_issues = self::analyze_images( $images, $img_resources );
+        $img_total_count = count( $images );
         $img_issues_count = count( array_filter( $img_issues, function( $i ) {
             return ! empty( $i['issues'] );
         } ) );
@@ -136,6 +149,7 @@ class EcoDiag_Analyzer {
             'dom_size'        => $dom_size,
             'js_count'        => count( $js_files ),
             'css_count'       => count( $css_files ),
+            'img_total_count' => $img_total_count,
             'img_issues_count'=> $img_issues_count,
             'css_resources'   => $css_resources,
             'js_resources'    => $js_resources,
@@ -251,39 +265,85 @@ class EcoDiag_Analyzer {
 
     /**
      * Extract image data from HTML.
+     * Supports standard <img>, <picture>/<source>, data-src lazy loading, and self-closing tags.
      */
     private static function extract_images( $html, $base_url ) {
         $images = array();
-        if ( preg_match_all( '/<img\s[^>]*>/i', $html, $m ) ) {
+        $seen_srcs = array();
+
+        // Match standard <img> tags (with or without space, self-closing)
+        if ( preg_match_all( '/<img[\s\/][^>]*\/?>/i', $html, $m ) ) {
             foreach ( $m[0] as $tag ) {
-                $img = array(
-                    'tag' => $tag,
-                    'src' => '',
-                    'has_lazy' => (bool) preg_match( '/loading\s*=\s*["\']lazy["\']/i', $tag ),
-                    'has_decoding' => (bool) preg_match( '/decoding\s*=\s*["\']async["\']/i', $tag ),
-                    'has_width' => (bool) preg_match( '/\swidth\s*=\s*["\']?\d+/i', $tag ),
-                    'has_height' => (bool) preg_match( '/\sheight\s*=\s*["\']?\d+/i', $tag ),
-                    'has_alt' => (bool) preg_match( '/\salt\s*=\s*["\']/i', $tag ),
-                    'alt_empty' => (bool) preg_match( '/\salt\s*=\s*["\']["\']/', $tag ),
-                    'has_srcset' => (bool) preg_match( '/\ssrcset\s*=\s*["\']/i', $tag ),
-                    'width' => 0,
-                    'height' => 0,
-                );
-                if ( preg_match( '/src=["\']([^"\']+)["\']/i', $tag, $s ) ) {
-                    $img['src'] = self::resolve_url( $s[1], $base_url );
-                }
-                if ( preg_match( '/\swidth=["\']?(\d+)/i', $tag, $w ) ) {
-                    $img['width'] = (int) $w[1];
-                }
-                if ( preg_match( '/\sheight=["\']?(\d+)/i', $tag, $h ) ) {
-                    $img['height'] = (int) $h[1];
-                }
-                if ( $img['src'] ) {
+                $img = self::parse_img_tag( $tag, $base_url );
+                if ( $img && $img['src'] && ! isset( $seen_srcs[ $img['src'] ] ) ) {
+                    $seen_srcs[ $img['src'] ] = true;
                     $images[] = $img;
                 }
             }
         }
+
+        // Match <picture> elements — extract the <img> fallback and check for WebP/AVIF <source>
+        if ( preg_match_all( '/<picture[^>]*>(.*?)<\/picture>/is', $html, $pm ) ) {
+            foreach ( $pm[1] as $picture_content ) {
+                if ( preg_match( '/<img[\s\/][^>]*\/?>/i', $picture_content, $im ) ) {
+                    $img = self::parse_img_tag( $im[0], $base_url );
+                    if ( $img && $img['src'] && ! isset( $seen_srcs[ $img['src'] ] ) ) {
+                        $img['has_modern_source'] = (bool) preg_match( '/type=["\']image\/(webp|avif)["\']/i', $picture_content );
+                        $seen_srcs[ $img['src'] ] = true;
+                        $images[] = $img;
+                    }
+                }
+            }
+        }
+
+        // Detect lazy-loaded images using data-src (common JS lazy-load pattern)
+        if ( preg_match_all( '/<img[^>]+data-src=["\']([^"\']+)["\'][^>]*>/i', $html, $dm ) ) {
+            foreach ( $dm[0] as $idx => $tag ) {
+                $data_src = self::resolve_url( $dm[1][ $idx ], $base_url );
+                if ( ! isset( $seen_srcs[ $data_src ] ) ) {
+                    $img = self::parse_img_tag( $tag, $base_url );
+                    if ( $img ) {
+                        $img['src'] = $data_src;
+                        $img['has_lazy'] = true;
+                        $seen_srcs[ $data_src ] = true;
+                        $images[] = $img;
+                    }
+                }
+            }
+        }
+
         return $images;
+    }
+
+    /**
+     * Parse a single <img> tag into structured data.
+     */
+    private static function parse_img_tag( $tag, $base_url ) {
+        $img = array(
+            'tag'        => $tag,
+            'src'        => '',
+            'has_lazy'   => (bool) preg_match( '/loading\s*=\s*["\']lazy["\']/i', $tag ),
+            'has_decoding' => (bool) preg_match( '/decoding\s*=\s*["\']async["\']/i', $tag ),
+            'has_width'  => (bool) preg_match( '/\swidth\s*=\s*["\']?\d+/i', $tag ),
+            'has_height' => (bool) preg_match( '/\sheight\s*=\s*["\']?\d+/i', $tag ),
+            'has_alt'    => (bool) preg_match( '/\salt\s*=\s*["\']/i', $tag ),
+            'alt_empty'  => (bool) preg_match( '/\salt\s*=\s*["\']["\']/', $tag ),
+            'has_srcset' => (bool) preg_match( '/\ssrcset\s*=\s*["\']/i', $tag ),
+            'has_modern_source' => false,
+            'width'  => 0,
+            'height' => 0,
+        );
+        // Match src but not data-src
+        if ( preg_match( '/\ssrc=["\']([^"\']+)["\']/i', $tag, $s ) ) {
+            $img['src'] = self::resolve_url( $s[1], $base_url );
+        }
+        if ( preg_match( '/\swidth=["\']?(\d+)/i', $tag, $w ) ) {
+            $img['width'] = (int) $w[1];
+        }
+        if ( preg_match( '/\sheight=["\']?(\d+)/i', $tag, $h ) ) {
+            $img['height'] = (int) $h[1];
+        }
+        return $img;
     }
 
     /**
@@ -377,10 +437,25 @@ class EcoDiag_Analyzer {
     /**
      * Analyze image issues (P-IMG diagnostics).
      */
+    /**
+     * Normalize URL for map lookups: strip query string and fragment.
+     */
+    private static function normalize_url( $url ) {
+        $parsed = wp_parse_url( $url );
+        $scheme = isset( $parsed['scheme'] ) ? $parsed['scheme'] . '://' : 'https://';
+        $host   = isset( $parsed['host'] ) ? $parsed['host'] : '';
+        $path   = isset( $parsed['path'] ) ? $parsed['path'] : '/';
+        return $scheme . $host . $path;
+    }
+
     private static function analyze_images( $images, $img_resources ) {
         $max_weight = (int) get_option( 'ecodiag_image_max_weight', 200 ) * 1024;
+
+        // Build resource map with normalized URLs for reliable lookups
         $resource_map = array();
         foreach ( $img_resources as $r ) {
+            $resource_map[ self::normalize_url( $r['url'] ) ] = $r['size'];
+            // Also keep the raw URL key as fallback
             $resource_map[ $r['url'] ] = $r['size'];
         }
 
@@ -389,9 +464,10 @@ class EcoDiag_Analyzer {
             $issues = array();
             $src = $img['src'];
             $ext = strtolower( pathinfo( wp_parse_url( $src, PHP_URL_PATH ) ?: '', PATHINFO_EXTENSION ) );
+            $has_modern_source = ! empty( $img['has_modern_source'] );
 
-            // P-IMG-01: Not WebP/AVIF
-            if ( ! in_array( $ext, array( 'webp', 'avif', 'svg' ), true ) ) {
+            // P-IMG-01: Not WebP/AVIF — skip if <picture> provides a modern <source>
+            if ( ! in_array( $ext, array( 'webp', 'avif', 'svg' ), true ) && ! $has_modern_source ) {
                 $issues[] = array( 'ref' => 'P-IMG-01', 'label' => __( 'Non converti en WebP/AVIF', 'ecodiag' ) );
             }
 
@@ -410,8 +486,9 @@ class EcoDiag_Analyzer {
                 $issues[] = array( 'ref' => 'P-IMG-05', 'label' => __( 'Attributs width/height manquants', 'ecodiag' ) );
             }
 
-            // P-IMG-06: Too heavy
-            $size = isset( $resource_map[ $src ] ) ? $resource_map[ $src ] : 0;
+            // P-IMG-06: Too heavy — try normalized URL then raw
+            $normalized = self::normalize_url( $src );
+            $size = isset( $resource_map[ $normalized ] ) ? $resource_map[ $normalized ] : ( isset( $resource_map[ $src ] ) ? $resource_map[ $src ] : 0 );
             if ( $size > $max_weight ) {
                 $issues[] = array(
                     'ref'   => 'P-IMG-06',

@@ -106,7 +106,7 @@
             var counters = document.getElementById('ecodiag-counters');
             if (counters && avg) {
                 counters.innerHTML =
-                    statItem(avg.total_img_issues || 0, 'Images non opt.') +
+                    statItem(avg.total_img_issues || 0, 'Img. avec problèmes') +
                     statItem(d.database ? d.database.revisions.count : 0, 'Révisions') +
                     statItem(d.media ? d.media.non_converted.count : 0, 'Non converties') +
                     statItem(d.database ? d.database.db_size.formatted : '—', 'Taille BDD');
@@ -374,7 +374,7 @@
         if (!med) return;
         var el = document.getElementById('ecodiag-diag-med');
         el.innerHTML =
-            diagCard('G-MED-01', 'Images non converties (WebP/AVIF)', med.non_converted.count, '', med.non_converted.status,
+            diagCard('G-MED-01', 'Images non converties en médiathèque (WebP/AVIF)', med.non_converted.count, '', med.non_converted.status,
                 actionBtn('ecodiag_bulk_convert', 'Conversion bulk')) +
             diagCard('G-MED-03', 'Médias orphelins', med.orphan_media.count, '', med.orphan_media.status,
                 actionBtn('ecodiag_delete_orphan_media', 'Supprimer les orphelins')) +
