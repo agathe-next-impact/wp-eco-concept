@@ -217,4 +217,75 @@ final class AjaxHandlerTest extends TestCase {
         $prepared = preg_match_all( '/\$wpdb->query\s*\(\s*\$wpdb->prepare\s*\(/', $source );
         $this->assertGreaterThan( 0, $prepared, 'Should have at least one prepared query' );
     }
+
+    // ─── Conversion methods update GUID ─────────────
+
+    #[Test]
+    public function bulk_convert_updates_guid(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        // Extract ecodiag_bulk_convert method body
+        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\).*?\n\s*\}/s', $source, $m );
+        $this->assertNotEmpty( $m[0], 'Could not extract ecodiag_bulk_convert method' );
+        $body = $m[0];
+        // Must set guid in wp_update_post
+        $this->assertStringContainsString( "'guid'", $body, 'bulk_convert must update attachment GUID' );
+    }
+
+    #[Test]
+    public function bulk_convert_regenerates_metadata(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\).*?\n\s*\}/s', $source, $m );
+        $body = $m[0];
+        $this->assertStringContainsString( 'wp_generate_attachment_metadata', $body, 'bulk_convert must regenerate attachment metadata' );
+        $this->assertStringContainsString( 'wp_update_attachment_metadata', $body, 'bulk_convert must save regenerated metadata' );
+    }
+
+    #[Test]
+    public function bulk_convert_updates_post_content_urls(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\).*?\n\s*\}/s', $source, $m );
+        $body = $m[0];
+        // Must update URLs in post_content via SQL REPLACE
+        $this->assertStringContainsString( 'REPLACE(post_content', $body, 'bulk_convert must update image URLs in post content' );
+    }
+
+    #[Test]
+    public function bulk_convert_invalidates_media_cache(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        // Extract region between bulk_convert function and next function
+        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\)(.*?)function\s+ecodiag_bulk_compress/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_bulk_convert body' );
+        $this->assertStringContainsString( "delete_transient( 'ecodiag_diag_media' )", $m[1], 'bulk_convert must invalidate media diagnostics cache' );
+    }
+
+    #[Test]
+    public function convert_images_updates_guid(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_convert_images\s*\(\)(.*?)function\s+ecodiag_compress_images/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_convert_images body' );
+        $this->assertStringContainsString( "'guid'", $m[1], 'convert_images must update attachment GUID' );
+    }
+
+    #[Test]
+    public function convert_images_regenerates_metadata(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_convert_images\s*\(\)(.*?)function\s+ecodiag_compress_images/s', $source, $m );
+        $this->assertStringContainsString( 'wp_generate_attachment_metadata', $m[1], 'convert_images must regenerate attachment metadata' );
+    }
+
+    #[Test]
+    public function convert_images_invalidates_media_cache(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_convert_images\s*\(\)(.*?)function\s+ecodiag_compress_images/s', $source, $m );
+        $this->assertStringContainsString( "delete_transient( 'ecodiag_diag_media' )", $m[1], 'convert_images must invalidate media diagnostics cache' );
+    }
+
+    #[Test]
+    public function bulk_convert_does_not_use_incremental_offset(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\)(.*?)function\s+ecodiag_bulk_compress/s', $source, $m );
+        // After conversion, images drop from query (mime type changes),
+        // so offset should always be 0
+        $this->assertStringContainsString( "'offset'         => 0", $m[1], 'bulk_convert must always query from offset 0 since converted images drop from results' );
+    }
 }

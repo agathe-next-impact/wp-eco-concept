@@ -551,7 +551,10 @@
                     if (r.data && r.data.has_more) {
                         btn.textContent = r.data.message || msg;
                         notify(msg, 'success');
-                        actionData.offset = r.data.offset;
+                        // Forward batch state for next iteration
+                        if (r.data.processed !== undefined) actionData.processed = r.data.processed;
+                        if (r.data.total_init !== undefined) actionData.total_init = r.data.total_init;
+                        if (r.data.offset !== undefined) actionData.offset = r.data.offset;
                         setTimeout(function () { runAction(actionData); }, 500);
                     } else {
                         btn.disabled = false;
@@ -560,6 +563,14 @@
                         btn.style.color = '#fff';
                         btn.style.borderColor = '#27ae60';
                         notify(msg, 'success');
+                        // Refresh dashboard/diagnostics data after action completes
+                        setTimeout(function () {
+                            if (document.getElementById('ecodiag-diagnostics-content') && typeof loadDiagnostics === 'function') {
+                                loadDiagnostics();
+                            } else if (document.getElementById('ecodiag-global-score') && typeof loadDashboard === 'function') {
+                                loadDashboard();
+                            }
+                        }, 1000);
                     }
                 } else {
                     btn.disabled = false;

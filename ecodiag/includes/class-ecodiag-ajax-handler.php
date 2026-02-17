@@ -220,9 +220,17 @@ class EcoDiag_Ajax_Handler {
                 $upload_dir = wp_upload_dir();
                 $new_url = str_replace( $upload_dir['basedir'], $upload_dir['baseurl'], $result['path'] );
 
-                update_attached_file( $att_id, $result['path'] );
-                wp_update_post( array( 'ID' => $att_id, 'post_mime_type' => $mime ) );
                 update_post_meta( $att_id, '_ecodiag_original_file', $file );
+                update_attached_file( $att_id, $result['path'] );
+                wp_update_post( array(
+                    'ID'             => $att_id,
+                    'post_mime_type' => $mime,
+                    'guid'           => $new_url,
+                ) );
+
+                // Update attachment metadata (file path + regenerate sizes)
+                $metadata = wp_generate_attachment_metadata( $att_id, $result['path'] );
+                wp_update_attachment_metadata( $att_id, $metadata );
 
                 // Replace in content
                 $content = str_replace( $src, $new_url, $content );
@@ -234,6 +242,7 @@ class EcoDiag_Ajax_Handler {
             wp_update_post( array( 'ID' => $post_id, 'post_content' => $content ) );
         }
         delete_transient( 'ecodiag_audit_' . $post_id );
+        delete_transient( 'ecodiag_diag_media' );
 
         wp_send_json_success( sprintf(
             /* translators: %d: number of converted images */
@@ -570,27 +579,35 @@ class EcoDiag_Ajax_Handler {
         $this->verify();
         $format  = get_option( 'ecodiag_conversion_format', 'webp' );
         $quality = (int) get_option( 'ecodiag_compression_quality', 80 );
-        $offset  = isset( $_POST['offset'] ) ? (int) $_POST['offset'] : 0;
         $batch   = 5;
 
-        $images = get_posts( array(
-            'post_type'      => 'attachment',
-            'post_mime_type' => array( 'image/jpeg', 'image/png', 'image/gif' ),
-            'posts_per_page' => $batch,
-            'offset'         => $offset,
-            'post_status'    => 'inherit',
-            'fields'         => 'ids',
-        ) );
-
+        // Count total remaining BEFORE processing (not using offset since converted
+        // images change mime type and drop out of the query automatically)
         global $wpdb;
-        $total_images = (int) $wpdb->get_var(
+        $total_remaining = (int) $wpdb->get_var(
             "SELECT COUNT(*) FROM {$wpdb->posts}
              WHERE post_type = 'attachment'
              AND post_mime_type IN ('image/jpeg','image/png','image/gif')
              AND post_status = 'inherit'"
         );
 
-        $converted = 0;
+        // Always fetch from offset 0: already-converted images are no longer
+        // returned by this query (their mime type changed), so the next batch
+        // is always the first N remaining images.
+        $images = get_posts( array(
+            'post_type'      => 'attachment',
+            'post_mime_type' => array( 'image/jpeg', 'image/png', 'image/gif' ),
+            'posts_per_page' => $batch,
+            'offset'         => 0,
+            'post_status'    => 'inherit',
+            'fields'         => 'ids',
+        ) );
+
+        $converted  = 0;
+        $processed  = isset( $_POST['processed'] ) ? (int) $_POST['processed'] : 0;
+        $total_init = isset( $_POST['total_init'] ) ? (int) $_POST['total_init'] : $total_remaining;
+        $upload_dir = wp_upload_dir();
+
         foreach ( $images as $att_id ) {
             $file = get_attached_file( $att_id );
             if ( ! $file || ! file_exists( $file ) ) continue;
@@ -607,20 +624,47 @@ class EcoDiag_Ajax_Handler {
             $result = $editor->save( $new_file, $mime );
             if ( is_wp_error( $result ) ) continue;
 
+            $new_url = str_replace( $upload_dir['basedir'], $upload_dir['baseurl'], $result['path'] );
+
             update_post_meta( $att_id, '_ecodiag_original_file', $file );
             update_attached_file( $att_id, $result['path'] );
-            wp_update_post( array( 'ID' => $att_id, 'post_mime_type' => $mime ) );
+            wp_update_post( array(
+                'ID'             => $att_id,
+                'post_mime_type' => $mime,
+                'guid'           => $new_url,
+            ) );
+
+            // Regenerate attachment metadata (sizes, dimensions) for the new format
+            $metadata = wp_generate_attachment_metadata( $att_id, $result['path'] );
+            wp_update_attachment_metadata( $att_id, $metadata );
+
+            // Update image URLs in all posts referencing this attachment
+            $old_url = str_replace( $upload_dir['basedir'], $upload_dir['baseurl'], $file );
+            if ( $old_url !== $new_url ) {
+                $wpdb->query( $wpdb->prepare(
+                    "UPDATE {$wpdb->posts} SET post_content = REPLACE(post_content, %s, %s) WHERE post_content LIKE %s",
+                    $old_url,
+                    $new_url,
+                    '%' . $wpdb->esc_like( $old_url ) . '%'
+                ) );
+            }
+
             $converted++;
         }
 
-        $has_more = ( $offset + $batch ) < $total_images;
+        $processed += $converted;
+        $has_more = ( $total_remaining - $converted ) > 0 && $converted > 0;
+
+        // Invalidate media diagnostics cache
+        delete_transient( 'ecodiag_diag_media' );
 
         wp_send_json_success( array(
-            'converted' => $converted,
-            'offset'    => $offset + $batch,
-            'has_more'  => $has_more,
-            'total'     => $total_images,
-            'message'   => sprintf( __( '%d/%d traité(s)...', 'ecodiag' ), min( $offset + $batch, $total_images ), $total_images ),
+            'converted'  => $converted,
+            'processed'  => $processed,
+            'total_init' => $total_init,
+            'has_more'   => $has_more,
+            'total'      => $total_remaining - $converted,
+            'message'    => sprintf( __( '%d/%d traité(s)...', 'ecodiag' ), $processed, $total_init ),
         ) );
     }
 
