@@ -287,8 +287,23 @@ class EcoDiag_Analyzer {
             foreach ( $pm[1] as $picture_content ) {
                 if ( preg_match( '/<img[\s\/][^>]*\/?>/i', $picture_content, $im ) ) {
                     $img = self::parse_img_tag( $im[0], $base_url );
-                    if ( $img && $img['src'] && ! isset( $seen_srcs[ $img['src'] ] ) ) {
-                        $img['has_modern_source'] = (bool) preg_match( '/type=["\']image\/(webp|avif)["\']/i', $picture_content );
+                    if ( ! $img || ! $img['src'] ) {
+                        continue;
+                    }
+                    $has_modern = (bool) preg_match( '/type=["\']image\/(webp|avif)["\']/i', $picture_content );
+                    if ( isset( $seen_srcs[ $img['src'] ] ) ) {
+                        // Update has_modern_source on the already-seen entry
+                        if ( $has_modern ) {
+                            foreach ( $images as &$existing ) {
+                                if ( $existing['src'] === $img['src'] ) {
+                                    $existing['has_modern_source'] = true;
+                                    break;
+                                }
+                            }
+                            unset( $existing );
+                        }
+                    } else {
+                        $img['has_modern_source'] = $has_modern;
                         $seen_srcs[ $img['src'] ] = true;
                         $images[] = $img;
                     }
@@ -693,6 +708,6 @@ class EcoDiag_Analyzer {
             return $scheme . '://' . $host . $url;
         }
         $path = isset( $parsed['path'] ) ? dirname( $parsed['path'] ) : '';
-        return $scheme . '://' . $host . $path . '/' . $url;
+        return $scheme . '://' . $host . rtrim( $path, '/' ) . '/' . $url;
     }
 }
