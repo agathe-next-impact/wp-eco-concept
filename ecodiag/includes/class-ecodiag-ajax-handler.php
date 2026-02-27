@@ -44,6 +44,8 @@ class EcoDiag_Ajax_Handler {
             'ecodiag_delete_orphan_crons',
             // Global actions (G-EDIT)
             'ecodiag_restrict_blocks',
+            // Global actions (G-LAZY)
+            'ecodiag_bulk_lazy_loading',
             // Export
             'ecodiag_export_csv',
             // Dashboard data
@@ -137,10 +139,12 @@ class EcoDiag_Ajax_Handler {
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
 
         $content = $post->post_content;
-        // Add loading="lazy" to images
-        $content = preg_replace( '/<img(?![^>]*loading=)([^>]*)>/i', '<img loading="lazy" decoding="async"$1>', $content );
-        // Add loading="lazy" to iframes
-        $content = preg_replace( '/<iframe(?![^>]*loading=)([^>]*)>/i', '<iframe loading="lazy"$1>', $content );
+        // Add loading="lazy" to images that don't have it
+        $content = preg_replace( '/<img(?![^>]*loading\s*=)([^>]*)>/i', '<img loading="lazy"$1>', $content );
+        // Add decoding="async" to images that don't have it
+        $content = preg_replace( '/<img(?![^>]*decoding\s*=)([^>]*)>/i', '<img decoding="async"$1>', $content );
+        // Add loading="lazy" to iframes that don't have it
+        $content = preg_replace( '/<iframe(?![^>]*loading\s*=)([^>]*)>/i', '<iframe loading="lazy"$1>', $content );
 
         wp_update_post( array( 'ID' => $post_id, 'post_content' => $content ) );
         delete_transient( 'ecodiag_audit_' . $post_id );
@@ -826,6 +830,91 @@ class EcoDiag_Ajax_Handler {
         $allowed = isset( $_POST['blocks'] ) ? array_map( 'sanitize_text_field', (array) $_POST['blocks'] ) : array();
         update_option( 'ecodiag_allowed_blocks', $allowed );
         wp_send_json_success( __( 'Blocs autorisés mis à jour.', 'ecodiag' ) );
+    }
+
+    // ========================================================================
+    // GLOBAL ACTIONS (G-LAZY) — Bulk lazy loading
+    // ========================================================================
+
+    public function ecodiag_bulk_lazy_loading() {
+        $this->verify();
+        $batch = 10;
+
+        $post_types = EcoDiag_Core::get_audited_post_types();
+        $processed  = isset( $_POST['processed'] ) ? (int) $_POST['processed'] : 0;
+        $total_init = isset( $_POST['total_init'] ) ? (int) $_POST['total_init'] : 0;
+
+        // Find posts whose content contains <img or <iframe WITHOUT loading=
+        global $wpdb;
+
+        $type_placeholders = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
+
+        // Count total remaining (posts with images/iframes that lack loading=)
+        $total_remaining = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->posts}
+                 WHERE post_type IN ({$type_placeholders})
+                 AND post_status = 'publish'
+                 AND (
+                     post_content REGEXP '<img[^>]*>' AND post_content NOT REGEXP '<img[^>]*loading\\\\s*='
+                     OR post_content REGEXP '<iframe[^>]*>' AND post_content NOT REGEXP '<iframe[^>]*loading\\\\s*='
+                 )",
+                ...$post_types
+            )
+        );
+
+        if ( $total_init <= 0 ) {
+            $total_init = $total_remaining;
+        }
+
+        // Get the next batch of posts needing lazy loading
+        $posts = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT ID FROM {$wpdb->posts}
+                 WHERE post_type IN ({$type_placeholders})
+                 AND post_status = 'publish'
+                 AND (
+                     post_content REGEXP '<img[^>]*>' AND post_content NOT REGEXP '<img[^>]*loading\\\\s*='
+                     OR post_content REGEXP '<iframe[^>]*>' AND post_content NOT REGEXP '<iframe[^>]*loading\\\\s*='
+                 )
+                 LIMIT %d",
+                ...array_merge( $post_types, array( $batch ) )
+            )
+        );
+
+        $modified = 0;
+        foreach ( $posts as $pid ) {
+            $post = get_post( $pid );
+            if ( ! $post ) continue;
+
+            $content = $post->post_content;
+            $original = $content;
+
+            // Add loading="lazy" to images
+            $content = preg_replace( '/<img(?![^>]*loading\s*=)([^>]*)>/i', '<img loading="lazy"$1>', $content );
+            // Add decoding="async" to images
+            $content = preg_replace( '/<img(?![^>]*decoding\s*=)([^>]*)>/i', '<img decoding="async"$1>', $content );
+            // Add loading="lazy" to iframes
+            $content = preg_replace( '/<iframe(?![^>]*loading\s*=)([^>]*)>/i', '<iframe loading="lazy"$1>', $content );
+
+            if ( $content !== $original ) {
+                wp_update_post( array( 'ID' => $pid, 'post_content' => $content ) );
+                delete_transient( 'ecodiag_audit_' . $pid );
+                $modified++;
+            }
+        }
+
+        $processed += $modified;
+        $has_more = ( $total_remaining - $modified ) > 0 && $modified > 0;
+
+        wp_send_json_success( array(
+            'converted'  => $modified,
+            'processed'  => $processed,
+            'total_init' => $total_init,
+            'has_more'   => $has_more,
+            'total'      => $total_remaining - $modified,
+            'message'    => sprintf( __( '%d/%d traité(s)...', 'ecodiag' ), $processed, $total_init ),
+        ) );
     }
 
     // ========================================================================

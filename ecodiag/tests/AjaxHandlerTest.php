@@ -288,4 +288,39 @@ final class AjaxHandlerTest extends TestCase {
         // so offset should always be 0
         $this->assertStringContainsString( "'offset'         => 0", $m[1], 'bulk_convert must always query from offset 0 since converted images drop from results' );
     }
+
+    // ─── Lazy loading action ────────────────────────
+
+    #[Test]
+    public function lazy_loading_regex_does_not_duplicate_decoding(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_add_lazy_loading\s*\(\)(.*?)function\s+ecodiag_add_dimensions/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_add_lazy_loading body' );
+        $body = $m[1];
+        // loading and decoding should be added separately to avoid duplicates
+        $loading_regexes = preg_match_all( '/preg_replace.*loading/', $body );
+        $decoding_regexes = preg_match_all( '/preg_replace.*decoding/', $body );
+        $this->assertGreaterThanOrEqual( 1, $loading_regexes, 'Should have a regex for loading' );
+        $this->assertGreaterThanOrEqual( 1, $decoding_regexes, 'Should have a separate regex for decoding' );
+        // The loading regex should NOT add decoding="async" in the same replacement
+        $this->assertDoesNotMatchRegularExpression(
+            '/preg_replace.*loading.*decoding="async"/',
+            $body,
+            'loading regex must not also inject decoding="async" (prevents duplicates)'
+        );
+    }
+
+    #[Test]
+    public function bulk_lazy_loading_action_exists(): void {
+        $handler = new EcoDiag_Ajax_Handler();
+        $registered = array_keys( $GLOBALS['_ecodiag_test_actions'] ?? array() );
+        $this->assertContains( 'wp_ajax_ecodiag_bulk_lazy_loading', $registered );
+    }
+
+    #[Test]
+    public function bulk_lazy_loading_method_exists_and_is_public(): void {
+        $this->assertTrue( method_exists( EcoDiag_Ajax_Handler::class, 'ecodiag_bulk_lazy_loading' ) );
+        $r = new \ReflectionMethod( EcoDiag_Ajax_Handler::class, 'ecodiag_bulk_lazy_loading' );
+        $this->assertTrue( $r->isPublic() );
+    }
 }

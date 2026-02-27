@@ -304,11 +304,33 @@ class EcoDiag_Diagnostics {
              AND (pm.meta_value IS NULL OR pm.meta_value = '')"
         );
 
+        // G-LAZY-01: Posts with images missing loading="lazy"
+        $post_types = EcoDiag_Core::get_audited_post_types();
+        $no_lazy = 0;
+        if ( ! empty( $post_types ) ) {
+            $type_placeholders = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
+            $no_lazy = (int) $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$wpdb->posts}
+                     WHERE post_type IN ({$type_placeholders})
+                     AND post_status = 'publish'
+                     AND post_content REGEXP '<img[^>]*>'
+                     AND post_content NOT REGEXP '<img[^>]*loading\\\\s*='",
+                    ...$post_types
+                )
+            );
+        }
+
         $result = array(
             'non_converted' => array(
                 'ref'    => 'G-MED-01',
                 'count'  => (int) $non_webp,
                 'status' => $non_webp > 50 ? 'red' : ( $non_webp > 10 ? 'orange' : 'green' ),
+            ),
+            'no_lazy' => array(
+                'ref'    => 'G-LAZY-01',
+                'count'  => (int) $no_lazy,
+                'status' => $no_lazy > 20 ? 'red' : ( $no_lazy > 5 ? 'orange' : 'green' ),
             ),
             'orphan_media' => array(
                 'ref'    => 'G-MED-03',

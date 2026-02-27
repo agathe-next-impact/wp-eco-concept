@@ -376,6 +376,8 @@
         el.innerHTML =
             diagCard('G-MED-01', 'Images non converties en médiathèque (WebP/AVIF)', med.non_converted.count, '', med.non_converted.status,
                 actionBtn('ecodiag_bulk_convert', 'Conversion bulk')) +
+            (med.no_lazy ? diagCard('G-LAZY-01', 'Contenus sans lazy loading (images)', med.no_lazy.count, '', med.no_lazy.status,
+                actionBtn('ecodiag_bulk_lazy_loading', 'Ajouter lazy loading')) : '') +
             diagCard('G-MED-03', 'Médias orphelins', med.orphan_media.count, '', med.orphan_media.status,
                 actionBtn('ecodiag_delete_orphan_media', 'Supprimer les orphelins')) +
             diagCard('G-MED-04', 'Tailles d\'images supplémentaires', med.extra_sizes.count, '', 'info', '') +

@@ -311,6 +311,10 @@
                     btn.classList.add('done');
                     btn.textContent = '✓ ' + (r.data || i18n.done);
                     showNotice(r.data || i18n.done, 'success');
+                    // Re-run audit after action to reflect changes
+                    if (auditBtn) {
+                        setTimeout(function () { auditBtn.click(); }, 1500);
+                    }
                 } else {
                     btn.textContent = origText;
                     showNotice(r.data || i18n.error, 'error');
