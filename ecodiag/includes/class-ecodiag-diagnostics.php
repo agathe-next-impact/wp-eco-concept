@@ -304,7 +304,7 @@ class EcoDiag_Diagnostics {
              AND (pm.meta_value IS NULL OR pm.meta_value = '')"
         );
 
-        // G-LAZY-01: Posts with images missing loading="lazy"
+        // G-LAZY-01: Posts with images or iframes missing loading="lazy"
         $post_types = EcoDiag_Core::get_audited_post_types();
         $no_lazy = 0;
         if ( ! empty( $post_types ) ) {
@@ -314,8 +314,10 @@ class EcoDiag_Diagnostics {
                     "SELECT COUNT(*) FROM {$wpdb->posts}
                      WHERE post_type IN ({$type_placeholders})
                      AND post_status = 'publish'
-                     AND post_content REGEXP '<img[^>]*>'
-                     AND post_content NOT REGEXP '<img[^>]*loading\\\\s*='",
+                     AND (
+                         (post_content REGEXP '<img[^>]*>' AND post_content NOT REGEXP '<img[^>]*loading\\\\s*=')
+                         OR (post_content REGEXP '<iframe[^>]*>' AND post_content NOT REGEXP '<iframe[^>]*loading\\\\s*=')
+                     )",
                     ...$post_types
                 )
             );
@@ -476,7 +478,12 @@ class EcoDiag_Diagnostics {
     /**
      * G-TRACK: Tracking scripts diagnostics (checks front page).
      */
-    public static function tracking() {
+    public static function tracking( $force = false ) {
+        if ( ! $force ) {
+            $cached = get_transient( 'ecodiag_diag_tracking' );
+            if ( $cached ) return $cached;
+        }
+
         $home_url = home_url( '/' );
         $response = wp_remote_get( $home_url, array( 'timeout' => 15, 'sslverify' => false ) );
 
@@ -517,7 +524,7 @@ class EcoDiag_Diagnostics {
             }
         }
 
-        return array(
+        $result = array(
             'trackers' => array(
                 'ref'   => 'G-TRACK-01',
                 'items' => $trackers,
@@ -531,6 +538,8 @@ class EcoDiag_Diagnostics {
                 'status' => count( $external ) > 10 ? 'red' : ( count( $external ) > 5 ? 'orange' : 'green' ),
             ),
         );
+        set_transient( 'ecodiag_diag_tracking', $result, 10 * MINUTE_IN_SECONDS );
+        return $result;
     }
 
     /**

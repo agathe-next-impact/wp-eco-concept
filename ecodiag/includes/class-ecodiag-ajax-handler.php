@@ -341,7 +341,15 @@ class EcoDiag_Ajax_Handler {
         $post    = get_post( $post_id );
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
 
-        $content = preg_replace( '/\s*autoplay\s*/i', ' ', $post->post_content );
+        $content = preg_replace_callback(
+            '/<(video|iframe)([^>]*)>/i',
+            function ( $m ) {
+                $tag  = $m[1];
+                $attrs = preg_replace( '/\s+autoplay(?:\s*=\s*["\'][^"\']*["\'])?/i', '', $m[2] );
+                return '<' . $tag . $attrs . '>';
+            },
+            $post->post_content
+        );
         wp_update_post( array( 'ID' => $post_id, 'post_content' => $content ) );
         delete_transient( 'ecodiag_audit_' . $post_id );
         wp_send_json_success( __( 'Autoplay supprimé.', 'ecodiag' ) );
@@ -536,6 +544,7 @@ class EcoDiag_Ajax_Handler {
             $optimized++;
         }
 
+        delete_transient( 'ecodiag_diag_database' );
         wp_send_json_success( sprintf( __( '%d table(s) optimisée(s).', 'ecodiag' ), $optimized ) );
     }
 
@@ -713,6 +722,9 @@ class EcoDiag_Ajax_Handler {
         );
         $has_more   = count( $images ) === $batch;
         $new_offset = $offset + $batch;
+
+        // Invalidate media diagnostics cache
+        delete_transient( 'ecodiag_diag_media' );
 
         wp_send_json_success( array(
             'compressed' => $compressed,
@@ -907,6 +919,9 @@ class EcoDiag_Ajax_Handler {
         $processed += $modified;
         $has_more = ( $total_remaining - $modified ) > 0 && $modified > 0;
 
+        // Invalidate media diagnostics cache (G-LAZY-01 counter)
+        delete_transient( 'ecodiag_diag_media' );
+
         wp_send_json_success( array(
             'converted'  => $modified,
             'processed'  => $processed,
@@ -1057,9 +1072,10 @@ class EcoDiag_Ajax_Handler {
             return;
         }
 
+        $force   = isset( $_POST['force'] ) && $_POST['force'] === '1';
         $post_id = url_to_postid( $url );
         if ( $post_id ) {
-            $result = EcoDiag_Analyzer::audit_post( $post_id );
+            $result = EcoDiag_Analyzer::audit_post( $post_id, $force );
         } else {
             $result = EcoDiag_Analyzer::analyze_url( $url );
             if ( ! is_wp_error( $result ) ) {

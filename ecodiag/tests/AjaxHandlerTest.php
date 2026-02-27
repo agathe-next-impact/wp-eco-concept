@@ -323,4 +323,60 @@ final class AjaxHandlerTest extends TestCase {
         $r = new \ReflectionMethod( EcoDiag_Ajax_Handler::class, 'ecodiag_bulk_lazy_loading' );
         $this->assertTrue( $r->isPublic() );
     }
+
+    // ─── Popup force refresh ───────────────────────
+
+    #[Test]
+    public function popup_data_reads_force_parameter(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_popup_data\s*\(\)(.*?)$/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_popup_data body' );
+        $body = $m[1];
+        $this->assertStringContainsString( "\$_POST['force']", $body, 'popup_data must read force parameter from POST' );
+        $this->assertStringContainsString( '$force', $body, 'popup_data must pass force to audit_post' );
+    }
+
+    // ─── Cache invalidation checks ──────────────────
+
+    #[Test]
+    public function bulk_lazy_loading_invalidates_media_cache(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_bulk_lazy_loading\s*\(\)(.*?)function\s+ecodiag_export_csv/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_bulk_lazy_loading body' );
+        $this->assertStringContainsString( "delete_transient( 'ecodiag_diag_media' )", $m[1], 'bulk_lazy_loading must invalidate media diagnostics cache' );
+    }
+
+    #[Test]
+    public function bulk_compress_invalidates_media_cache(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_bulk_compress\s*\(\)(.*?)function\s+ecodiag_delete_orphan_media/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_bulk_compress body' );
+        $this->assertStringContainsString( "delete_transient( 'ecodiag_diag_media' )", $m[1], 'bulk_compress must invalidate media diagnostics cache' );
+    }
+
+    #[Test]
+    public function optimize_tables_invalidates_database_cache(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_optimize_tables\s*\(\)(.*?)function\s+ecodiag_delete_plugin/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_optimize_tables body' );
+        $this->assertStringContainsString( "delete_transient( 'ecodiag_diag_database' )", $m[1], 'optimize_tables must invalidate database diagnostics cache' );
+    }
+
+    // ─── Autoplay removal safety ───────────────────
+
+    #[Test]
+    public function remove_autoplay_targets_only_tags(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_remove_autoplay\s*\(\)(.*?)function\s+ecodiag_add_iframe_lazy/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_remove_autoplay body' );
+        $body = $m[1];
+        // Must NOT use a naive global regex like '/\s*autoplay\s*/i' that matches text content
+        $this->assertDoesNotMatchRegularExpression(
+            "/preg_replace\s*\(\s*'\/.*autoplay.*\/i'\s*,\s*' '/",
+            $body,
+            'remove_autoplay must not use a naive global regex that matches text content'
+        );
+        // Must use preg_replace_callback targeting specific tags
+        $this->assertStringContainsString( 'preg_replace_callback', $body, 'remove_autoplay should use preg_replace_callback to target only HTML tags' );
+    }
 }
