@@ -223,19 +223,16 @@ final class AjaxHandlerTest extends TestCase {
     #[Test]
     public function bulk_convert_updates_guid(): void {
         $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
-        // Extract ecodiag_bulk_convert method body
-        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\).*?\n\s*\}/s', $source, $m );
-        $this->assertNotEmpty( $m[0], 'Could not extract ecodiag_bulk_convert method' );
-        $body = $m[0];
-        // Must set guid in wp_update_post
-        $this->assertStringContainsString( "'guid'", $body, 'bulk_convert must update attachment GUID' );
+        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\)(.*?)function\s+ecodiag_bulk_compress/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_bulk_convert method' );
+        $this->assertStringContainsString( "'guid'", $m[1], 'bulk_convert must update attachment GUID' );
     }
 
     #[Test]
     public function bulk_convert_regenerates_metadata(): void {
         $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
-        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\).*?\n\s*\}/s', $source, $m );
-        $body = $m[0];
+        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\)(.*?)function\s+ecodiag_bulk_compress/s', $source, $m );
+        $body = $m[1];
         $this->assertStringContainsString( 'wp_generate_attachment_metadata', $body, 'bulk_convert must regenerate attachment metadata' );
         $this->assertStringContainsString( 'wp_update_attachment_metadata', $body, 'bulk_convert must save regenerated metadata' );
     }
@@ -243,8 +240,8 @@ final class AjaxHandlerTest extends TestCase {
     #[Test]
     public function bulk_convert_updates_post_content_urls(): void {
         $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
-        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\).*?\n\s*\}/s', $source, $m );
-        $body = $m[0];
+        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\)(.*?)function\s+ecodiag_bulk_compress/s', $source, $m );
+        $body = $m[1];
         // Must update URLs in post_content via SQL REPLACE
         $this->assertStringContainsString( 'REPLACE(post_content', $body, 'bulk_convert must update image URLs in post content' );
     }
@@ -378,5 +375,81 @@ final class AjaxHandlerTest extends TestCase {
         );
         // Must use preg_replace_callback targeting specific tags
         $this->assertStringContainsString( 'preg_replace_callback', $body, 'remove_autoplay should use preg_replace_callback to target only HTML tags' );
+    }
+
+    // ─── Image action helpers ──────────────────────
+
+    #[Test]
+    public function resolve_attachment_id_helper_exists(): void {
+        $r = new \ReflectionMethod( EcoDiag_Ajax_Handler::class, 'resolve_attachment_id' );
+        $this->assertTrue( $r->isPrivate(), 'resolve_attachment_id should be private' );
+        $params = $r->getParameters();
+        $this->assertCount( 1, $params, 'resolve_attachment_id takes one parameter (src)' );
+    }
+
+    #[Test]
+    public function get_sized_dimensions_helper_exists(): void {
+        $r = new \ReflectionMethod( EcoDiag_Ajax_Handler::class, 'get_sized_dimensions' );
+        $this->assertTrue( $r->isPrivate() );
+        $this->assertCount( 2, $r->getParameters(), 'get_sized_dimensions takes two parameters (src, att_id)' );
+    }
+
+    #[Test]
+    public function replace_image_urls_in_content_helper_exists(): void {
+        $r = new \ReflectionMethod( EcoDiag_Ajax_Handler::class, 'replace_image_urls_in_content' );
+        $this->assertTrue( $r->isPrivate() );
+        $this->assertCount( 4, $r->getParameters(), 'replace_image_urls_in_content takes 4 parameters' );
+    }
+
+    #[Test]
+    public function convert_images_uses_wp_image_class(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_convert_images\s*\(\)(.*?)function\s+ecodiag_compress_images/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_convert_images body' );
+        // Must extract attachment IDs from Gutenberg wp-image-{ID} class
+        $this->assertStringContainsString( 'wp-image-', $m[1], 'convert_images must extract attachment IDs from wp-image class' );
+        // Must also use resolve_attachment_id for classic editor URLs
+        $this->assertStringContainsString( 'resolve_attachment_id', $m[1], 'convert_images must use resolve_attachment_id for URL fallback' );
+    }
+
+    #[Test]
+    public function convert_images_replaces_sized_urls(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_convert_images\s*\(\)(.*?)function\s+ecodiag_compress_images/s', $source, $m );
+        // Must use replace_image_urls_in_content to handle sized variants
+        $this->assertStringContainsString( 'replace_image_urls_in_content', $m[1], 'convert_images must replace all URL variants including sized ones' );
+    }
+
+    #[Test]
+    public function compress_images_uses_resolve_attachment_id(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_compress_images\s*\(\)(.*?)function\s+ecodiag_convert_embeds/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract ecodiag_compress_images body' );
+        $this->assertStringContainsString( 'resolve_attachment_id', $m[1], 'compress_images must use resolve_attachment_id' );
+        $this->assertStringContainsString( 'wp_generate_attachment_metadata', $m[1], 'compress_images must regenerate sized variants' );
+    }
+
+    #[Test]
+    public function add_dimensions_uses_resolve_and_sized_dims(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+add_img_dimensions\s*\((.*?)function\s+ecodiag_convert_images/s', $source, $m );
+        $this->assertNotEmpty( $m[1], 'Could not extract add_img_dimensions body' );
+        $body = $m[1];
+        // Must use Gutenberg class extraction
+        $this->assertStringContainsString( 'wp-image-', $body, 'add_img_dimensions must try Gutenberg class for attachment ID' );
+        // Must use resolve_attachment_id as fallback
+        $this->assertStringContainsString( 'resolve_attachment_id', $body, 'add_img_dimensions must use resolve_attachment_id' );
+        // Must use get_sized_dimensions for correct dimensions
+        $this->assertStringContainsString( 'get_sized_dimensions', $body, 'add_img_dimensions must use get_sized_dimensions for correct size' );
+    }
+
+    #[Test]
+    public function bulk_convert_replaces_sized_url_variants(): void {
+        $source = file_get_contents( ECODIAG_PATH . 'includes/class-ecodiag-ajax-handler.php' );
+        preg_match( '/function\s+ecodiag_bulk_convert\s*\(\)(.*?)function\s+ecodiag_bulk_compress/s', $source, $m );
+        // Must save old metadata before conversion to know old sizes
+        $this->assertStringContainsString( 'old_metadata', $m[1], 'bulk_convert must save old metadata for sized URL replacement' );
+        // Must iterate sizes and replace each
+        $this->assertStringContainsString( "['sizes']", $m[1], 'bulk_convert must iterate old sizes for URL replacement' );
     }
 }

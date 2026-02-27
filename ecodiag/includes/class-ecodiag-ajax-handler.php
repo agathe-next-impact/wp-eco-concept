@@ -78,6 +78,70 @@ class EcoDiag_Ajax_Handler {
         }
     }
 
+    /**
+     * Resolve attachment ID from a URL, handling sized image URLs (-300x200).
+     */
+    private function resolve_attachment_id( $src ) {
+        $att_id = attachment_url_to_postid( $src );
+        if ( $att_id ) return $att_id;
+
+        // Strip size suffix: image-300x200.jpg → image.jpg
+        $path = wp_parse_url( $src, PHP_URL_PATH );
+        if ( $path && preg_match( '/^(.+)-\d+x\d+(\.[a-zA-Z]{3,4})$/', $path, $m ) ) {
+            $original_url = str_replace( $path, $m[1] . $m[2], $src );
+            $att_id = attachment_url_to_postid( $original_url );
+            if ( $att_id ) return $att_id;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Get the dimensions for a specific image size from attachment metadata.
+     * If the URL references a sized version, returns those dimensions;
+     * otherwise returns the original dimensions.
+     */
+    private function get_sized_dimensions( $src, $att_id ) {
+        $meta = wp_get_attachment_metadata( $att_id );
+        if ( ! $meta || ! isset( $meta['width'], $meta['height'] ) ) {
+            return null;
+        }
+
+        // Check if the URL references a sized variant
+        $path = wp_parse_url( $src, PHP_URL_PATH );
+        if ( $path && preg_match( '/-(\d+)x(\d+)\.[a-zA-Z]{3,4}$/', $path, $m ) ) {
+            return array( 'width' => (int) $m[1], 'height' => (int) $m[2] );
+        }
+
+        // Return original dimensions
+        return array( 'width' => (int) $meta['width'], 'height' => (int) $meta['height'] );
+    }
+
+    /**
+     * Replace all size variants of an old image URL with the new extension in content.
+     * E.g. photo.jpg, photo-300x200.jpg, photo-150x150.jpg → .webp equivalents.
+     */
+    private function replace_image_urls_in_content( $content, $old_file, $new_ext, $upload_dir ) {
+        $old_info = pathinfo( $old_file );
+        $old_base = $old_info['filename']; // e.g., "photo"
+        $old_ext  = $old_info['extension']; // e.g., "jpg"
+
+        $old_rel = str_replace( $upload_dir['basedir'], $upload_dir['baseurl'], $old_file );
+        $new_rel = str_replace( '.' . $old_ext, '.' . $new_ext, $old_rel );
+
+        // Replace full-size URL
+        $content = str_replace( $old_rel, $new_rel, $content );
+
+        // Replace sized variants: photo-{W}x{H}.jpg → photo-{W}x{H}.webp
+        $content = preg_replace(
+            '/' . preg_quote( $old_base, '/' ) . '-(\d+x\d+)\.' . preg_quote( $old_ext, '/' ) . '/i',
+            $old_base . '-$1.' . $new_ext,
+            $content
+        );
+
+        return $content;
+    }
+
     // ========================================================================
     // AUDIT
     // ========================================================================
@@ -172,16 +236,25 @@ class EcoDiag_Ajax_Handler {
         }
         if ( preg_match( '/src=["\']([^"\']+)["\']/i', $tag, $m ) ) {
             $src = $m[1];
-            // Try to get image from media library
-            $attachment_id = attachment_url_to_postid( $src );
+
+            // Try Gutenberg class first: wp-image-{ID}
+            $attachment_id = 0;
+            if ( preg_match( '/class="[^"]*wp-image-(\d+)/', $tag, $ci ) ) {
+                $attachment_id = (int) $ci[1];
+            }
+            if ( ! $attachment_id ) {
+                $attachment_id = $this->resolve_attachment_id( $src );
+            }
+
             if ( $attachment_id ) {
-                $meta = wp_get_attachment_metadata( $attachment_id );
-                if ( $meta && isset( $meta['width'], $meta['height'] ) ) {
+                // Get dimensions for the actual size used (not necessarily the original)
+                $dims = $this->get_sized_dimensions( $src, $attachment_id );
+                if ( $dims ) {
                     if ( ! preg_match( '/\swidth=/i', $tag ) ) {
-                        $tag = str_replace( '<img', '<img width="' . (int) $meta['width'] . '"', $tag );
+                        $tag = str_replace( '<img', '<img width="' . $dims['width'] . '"', $tag );
                     }
                     if ( ! preg_match( '/\sheight=/i', $tag ) ) {
-                        $tag = str_replace( '<img', '<img height="' . (int) $meta['height'] . '"', $tag );
+                        $tag = str_replace( '<img', '<img height="' . $dims['height'] . '"', $tag );
                     }
                 }
             }
@@ -196,50 +269,66 @@ class EcoDiag_Ajax_Handler {
         $post    = get_post( $post_id );
         if ( ! $post ) wp_send_json_error( __( 'Contenu introuvable.', 'ecodiag' ) );
 
-        $content   = $post->post_content;
-        $converted = 0;
+        $content    = $post->post_content;
+        $converted  = 0;
+        $upload_dir = wp_upload_dir();
+        $ext        = $format === 'avif' ? 'avif' : 'webp';
+        $mime       = $format === 'avif' ? 'image/avif' : 'image/webp';
+        $quality    = (int) get_option( 'ecodiag_compression_quality', 80 );
+        $done_ids   = array();
 
-        if ( preg_match_all( '/src=["\']([^"\']+\.(?:png|jpg|jpeg|gif))["\']/', $content, $m ) ) {
-            foreach ( $m[1] as $src ) {
-                $att_id = attachment_url_to_postid( $src );
-                if ( ! $att_id ) continue;
-
-                $file = get_attached_file( $att_id );
-                if ( ! $file || ! file_exists( $file ) ) continue;
-
-                $editor = wp_get_image_editor( $file );
-                if ( is_wp_error( $editor ) ) continue;
-
-                $info     = pathinfo( $file );
-                $ext      = $format === 'avif' ? 'avif' : 'webp';
-                $mime     = $format === 'avif' ? 'image/avif' : 'image/webp';
-                $new_file = $info['dirname'] . '/' . $info['filename'] . '.' . $ext;
-
-                $quality = (int) get_option( 'ecodiag_compression_quality', 80 );
-                $editor->set_quality( $quality );
-                $result = $editor->save( $new_file, $mime );
-                if ( is_wp_error( $result ) ) continue;
-
-                // Update attachment
-                $upload_dir = wp_upload_dir();
-                $new_url = str_replace( $upload_dir['basedir'], $upload_dir['baseurl'], $result['path'] );
-
-                update_post_meta( $att_id, '_ecodiag_original_file', $file );
-                update_attached_file( $att_id, $result['path'] );
-                wp_update_post( array(
-                    'ID'             => $att_id,
-                    'post_mime_type' => $mime,
-                    'guid'           => $new_url,
-                ) );
-
-                // Update attachment metadata (file path + regenerate sizes)
-                $metadata = wp_generate_attachment_metadata( $att_id, $result['path'] );
-                wp_update_attachment_metadata( $att_id, $metadata );
-
-                // Replace in content
-                $content = str_replace( $src, $new_url, $content );
-                $converted++;
+        // Collect unique attachment IDs from content
+        // Method 1: Gutenberg class wp-image-{ID}
+        if ( preg_match_all( '/class="[^"]*wp-image-(\d+)[^"]*"/', $content, $cm ) ) {
+            foreach ( $cm[1] as $id ) {
+                $done_ids[ (int) $id ] = true;
             }
+        }
+        // Method 2: src URL resolution (handles classic editor)
+        if ( preg_match_all( '/src=["\']([^"\']+\.(?:png|jpg|jpeg|gif))(?:\?[^"\']*)?["\']/', $content, $sm ) ) {
+            foreach ( $sm[1] as $src ) {
+                $att_id = $this->resolve_attachment_id( $src );
+                if ( $att_id ) {
+                    $done_ids[ $att_id ] = true;
+                }
+            }
+        }
+
+        foreach ( array_keys( $done_ids ) as $att_id ) {
+            $file = get_attached_file( $att_id );
+            if ( ! $file || ! file_exists( $file ) ) continue;
+
+            // Skip if already converted
+            $file_ext = strtolower( pathinfo( $file, PATHINFO_EXTENSION ) );
+            if ( in_array( $file_ext, array( 'webp', 'avif' ), true ) ) continue;
+
+            $editor = wp_get_image_editor( $file );
+            if ( is_wp_error( $editor ) ) continue;
+
+            $info     = pathinfo( $file );
+            $new_file = $info['dirname'] . '/' . $info['filename'] . '.' . $ext;
+
+            $editor->set_quality( $quality );
+            $result = $editor->save( $new_file, $mime );
+            if ( is_wp_error( $result ) ) continue;
+
+            $new_url = str_replace( $upload_dir['basedir'], $upload_dir['baseurl'], $result['path'] );
+
+            update_post_meta( $att_id, '_ecodiag_original_file', $file );
+            update_attached_file( $att_id, $result['path'] );
+            wp_update_post( array(
+                'ID'             => $att_id,
+                'post_mime_type' => $mime,
+                'guid'           => $new_url,
+            ) );
+
+            // Regenerate sized variants for the new format
+            $metadata = wp_generate_attachment_metadata( $att_id, $result['path'] );
+            wp_update_attachment_metadata( $att_id, $metadata );
+
+            // Replace all URL variants (full-size + sized) in content
+            $content = $this->replace_image_urls_in_content( $content, $file, $ext, $upload_dir );
+            $converted++;
         }
 
         if ( $converted > 0 ) {
@@ -265,24 +354,38 @@ class EcoDiag_Ajax_Handler {
         $quality    = (int) get_option( 'ecodiag_compression_quality', 80 );
         $max_weight = (int) get_option( 'ecodiag_image_max_weight', 200 ) * 1024;
         $compressed = 0;
+        $done_ids   = array();
 
-        if ( preg_match_all( '/src=["\']([^"\']+)["\']/', $post->post_content, $m ) ) {
-            foreach ( $m[1] as $src ) {
-                $att_id = attachment_url_to_postid( $src );
-                if ( ! $att_id ) continue;
-
-                $file = get_attached_file( $att_id );
-                if ( ! $file || ! file_exists( $file ) ) continue;
-                if ( filesize( $file ) <= $max_weight ) continue;
-
-                $editor = wp_get_image_editor( $file );
-                if ( is_wp_error( $editor ) ) continue;
-
-                $editor->set_quality( $quality );
-                $result = $editor->save( $file );
-                if ( ! is_wp_error( $result ) ) {
-                    $compressed++;
+        // Collect unique attachment IDs from content (via class or src URL)
+        if ( preg_match_all( '/class="[^"]*wp-image-(\d+)[^"]*"/', $post->post_content, $cm ) ) {
+            foreach ( $cm[1] as $id ) {
+                $done_ids[ (int) $id ] = true;
+            }
+        }
+        if ( preg_match_all( '/<img[^>]+src=["\']([^"\']+)["\'][^>]*>/i', $post->post_content, $sm ) ) {
+            foreach ( $sm[1] as $src ) {
+                $att_id = $this->resolve_attachment_id( $src );
+                if ( $att_id ) {
+                    $done_ids[ $att_id ] = true;
                 }
+            }
+        }
+
+        foreach ( array_keys( $done_ids ) as $att_id ) {
+            $file = get_attached_file( $att_id );
+            if ( ! $file || ! file_exists( $file ) ) continue;
+            if ( filesize( $file ) <= $max_weight ) continue;
+
+            $editor = wp_get_image_editor( $file );
+            if ( is_wp_error( $editor ) ) continue;
+
+            $editor->set_quality( $quality );
+            $result = $editor->save( $file );
+            if ( ! is_wp_error( $result ) ) {
+                // Regenerate sized variants with new quality
+                $metadata = wp_generate_attachment_metadata( $att_id, $file );
+                wp_update_attachment_metadata( $att_id, $metadata );
+                $compressed++;
             }
         }
 
@@ -639,6 +742,9 @@ class EcoDiag_Ajax_Handler {
 
             $new_url = str_replace( $upload_dir['basedir'], $upload_dir['baseurl'], $result['path'] );
 
+            // Save old metadata before conversion (to get old sized file URLs)
+            $old_metadata = wp_get_attachment_metadata( $att_id );
+
             update_post_meta( $att_id, '_ecodiag_original_file', $file );
             update_attached_file( $att_id, $result['path'] );
             wp_update_post( array(
@@ -653,13 +759,30 @@ class EcoDiag_Ajax_Handler {
 
             // Update image URLs in all posts referencing this attachment
             $old_url = str_replace( $upload_dir['basedir'], $upload_dir['baseurl'], $file );
-            if ( $old_url !== $new_url ) {
-                $wpdb->query( $wpdb->prepare(
-                    "UPDATE {$wpdb->posts} SET post_content = REPLACE(post_content, %s, %s) WHERE post_content LIKE %s",
-                    $old_url,
-                    $new_url,
-                    '%' . $wpdb->esc_like( $old_url ) . '%'
-                ) );
+
+            // Collect all old URLs to replace (full-size + each sized variant)
+            $old_dir_url = dirname( $old_url );
+            $new_dir_url = dirname( $new_url );
+            $url_replacements = array( $old_url => $new_url );
+
+            if ( ! empty( $old_metadata['sizes'] ) ) {
+                foreach ( $old_metadata['sizes'] as $old_size ) {
+                    $old_size_url = $old_dir_url . '/' . $old_size['file'];
+                    $new_size_file = preg_replace( '/\.[a-zA-Z]{3,4}$/', '.' . $ext, $old_size['file'] );
+                    $new_size_url = $new_dir_url . '/' . $new_size_file;
+                    $url_replacements[ $old_size_url ] = $new_size_url;
+                }
+            }
+
+            foreach ( $url_replacements as $old => $new ) {
+                if ( $old !== $new ) {
+                    $wpdb->query( $wpdb->prepare(
+                        "UPDATE {$wpdb->posts} SET post_content = REPLACE(post_content, %s, %s) WHERE post_content LIKE %s",
+                        $old,
+                        $new,
+                        '%' . $wpdb->esc_like( $old ) . '%'
+                    ) );
+                }
             }
 
             $converted++;
