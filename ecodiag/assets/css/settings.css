@@ -1,0 +1,68 @@
+/* EcoDiag Settings Styles */
+
+/* Toggle switch */
+.ecodiag-toggle {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 22px;
+}
+
+.ecodiag-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.ecodiag-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #ccc;
+    border-radius: 22px;
+    transition: background-color 0.3s;
+}
+
+.ecodiag-toggle-slider:before {
+    content: "";
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.3s;
+}
+
+.ecodiag-toggle input:checked + .ecodiag-toggle-slider {
+    background-color: #2ecc71;
+}
+
+.ecodiag-toggle input:checked + .ecodiag-toggle-slider:before {
+    transform: translateX(22px);
+}
+
+/* Range slider */
+.ecodiag-range {
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.ecodiag-range-val {
+    font-weight: 600;
+    min-width: 40px;
+    display: inline-block;
+}
+
+/* Settings form table adjustments */
+.ecodiag-wrap .form-table th {
+    width: 280px;
+    padding-right: 20px;
+}
+
+.ecodiag-wrap .form-table td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+}

@@ -1,0 +1,343 @@
+/* EcoDiag Dashboard Styles */
+.ecodiag-wrap {
+    max-width: 1200px;
+    margin: 20px auto;
+}
+
+.ecodiag-title {
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: #1d2327;
+}
+
+/* Dashboard grid */
+.ecodiag-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+/* Cards */
+.ecodiag-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.ecodiag-card h2 {
+    font-size: 15px;
+    margin: 0 0 16px;
+    padding: 0 0 8px;
+    border-bottom: 1px solid #eee;
+    color: #1d2327;
+}
+
+.ecodiag-card-wide {
+    grid-column: 1 / -1;
+}
+
+/* Big score display */
+.ecodiag-big-score {
+    text-align: center;
+    padding: 20px;
+}
+
+.ecodiag-big-number {
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ecodiag-big-label {
+    font-size: 20px;
+    color: #646970;
+}
+
+.ecodiag-big-score.green .ecodiag-big-number { color: #2ecc71; }
+.ecodiag-big-score.orange .ecodiag-big-number { color: #f39c12; }
+.ecodiag-big-score.red .ecodiag-big-number { color: #e74c3c; }
+
+/* Stats grid */
+.ecodiag-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.ecodiag-stat-item {
+    padding: 12px;
+    background: #f6f7f7;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.ecodiag-stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1d2327;
+}
+
+.ecodiag-stat-label {
+    font-size: 11px;
+    color: #646970;
+    text-transform: uppercase;
+    margin-top: 4px;
+}
+
+/* Tables */
+.ecodiag-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.ecodiag-table th,
+.ecodiag-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.ecodiag-table th {
+    font-weight: 600;
+    color: #646970;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.ecodiag-table tbody tr:hover {
+    background: #f6f7f7;
+}
+
+/* Score badge */
+.ecodiag-score-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 12px;
+    color: #fff;
+}
+
+/* Chart container */
+.ecodiag-chart-container {
+    position: relative;
+    width: 100%;
+    min-height: 200px;
+}
+
+/* Sections on diagnostics page */
+.ecodiag-section {
+    margin-bottom: 24px;
+}
+
+.ecodiag-section h2 {
+    font-size: 16px;
+    padding: 12px 16px;
+    background: #f0f0f1;
+    border-left: 4px solid #2271b1;
+    margin: 0 0 12px;
+}
+
+/* Diagnostic grid */
+.ecodiag-diag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+}
+
+.ecodiag-diag-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 16px;
+    border-left: 4px solid #ddd;
+}
+
+.ecodiag-diag-card.green { border-left-color: #2ecc71; }
+.ecodiag-diag-card.orange { border-left-color: #f39c12; }
+.ecodiag-diag-card.red { border-left-color: #e74c3c; }
+.ecodiag-diag-card.info { border-left-color: #3498db; }
+
+.ecodiag-diag-card .ecodiag-diag-ref {
+    font-size: 10px;
+    font-weight: 700;
+    color: #999;
+    margin-bottom: 4px;
+}
+
+.ecodiag-diag-card .ecodiag-diag-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.ecodiag-diag-card .ecodiag-diag-value {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.ecodiag-diag-card .ecodiag-diag-detail {
+    font-size: 12px;
+    color: #646970;
+}
+
+.ecodiag-diag-card .ecodiag-diag-action {
+    margin-top: 12px;
+}
+
+/* Toggles grid for head cleanup */
+.ecodiag-toggles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+}
+
+.ecodiag-toggle-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.ecodiag-toggle-item .ecodiag-toggle-label {
+    font-size: 13px;
+}
+
+.ecodiag-toggle-item .ecodiag-toggle-status {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.ecodiag-toggle-item .ecodiag-toggle-status.cleaned { background: #2ecc71; }
+.ecodiag-toggle-item .ecodiag-toggle-status.present { background: #f39c12; }
+
+/* Toggle switch */
+.ecodiag-switch {
+    position: relative;
+    width: 40px;
+    height: 20px;
+}
+
+.ecodiag-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.ecodiag-switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #ccc;
+    border-radius: 20px;
+    transition: .3s;
+}
+
+.ecodiag-switch-slider:before {
+    content: "";
+    position: absolute;
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: .3s;
+}
+
+.ecodiag-switch input:checked + .ecodiag-switch-slider {
+    background-color: #2ecc71;
+}
+
+.ecodiag-switch input:checked + .ecodiag-switch-slider:before {
+    transform: translateX(20px);
+}
+
+/* Notification */
+.ecodiag-notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 99999;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: opacity 0.3s;
+}
+
+.ecodiag-notification.success {
+    background: #2ecc71;
+    color: #fff;
+}
+
+.ecodiag-notification.error {
+    background: #e74c3c;
+    color: #fff;
+}
+
+/* Loading state */
+.ecodiag-loading-state {
+    text-align: center;
+    padding: 40px;
+    color: #646970;
+    font-size: 15px;
+}
+
+/* Suggestions card */
+.ecodiag-suggestions {
+    background: #fef9e7;
+    border-color: #f39c12;
+}
+
+.ecodiag-suggestions ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ecodiag-suggestions li {
+    padding: 8px 0;
+    border-bottom: 1px solid #f0e3c0;
+}
+
+/* Conditional loading table */
+.ecodiag-conditional-table td,
+.ecodiag-conditional-table th {
+    text-align: center;
+}
+
+.ecodiag-conditional-table td:first-child {
+    text-align: left;
+}
+
+.ecodiag-card-actions .button {
+    display: block;
+    width: 100%;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+    .ecodiag-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    .ecodiag-diag-grid {
+        grid-template-columns: 1fr;
+    }
+    .ecodiag-toggles-grid {
+        grid-template-columns: 1fr;
+    }
+}
